@@ -25,12 +25,20 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import Confetti from "@/components/ui/confetti";
 import { motion, AnimatePresence } from "framer-motion";
+import emailjs from 'emailjs-com';
+
+// Конфигурация EmailJS (ЗАМЕНИТЕ НА СВОИ ДАННЫЕ)
+const EMAILJS_CONFIG = {
+  SERVICE_ID: 'service_38km9pt',
+  TEMPLATE_ID: 'template_3zl1enj',
+  USER_ID: 'IQfUWwV4_-u1ntE-W',
+  TO_EMAIL: 'sashabrawl46@gmail.com' // Ваша почта для получения заявок
+};
 
 const timeSlots = [
   "09:00", "10:30", "12:00", "13:30", "15:00", "16:30", "18:00", "19:30"
 ];
 
-// Simulate booked slots - in a real app, these would come from a database
 const bookedSlots = {
   "2025-05-15": ["09:00", "12:00", "16:30"],
   "2025-05-16": ["10:30", "15:00"],
@@ -50,32 +58,63 @@ const Booking = () => {
   const [showConfetti, setShowConfetti] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const validateForm = () => {
+    const errors: string[] = [];
+    const phoneRegex = /^(\+7|8)[\d\s()-]{9,}\d$/;
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+    if (!name.trim()) errors.push("Укажите ваше имя");
+    if (!phoneRegex.test(phone)) errors.push("Неверный формат телефона");
+    if (email && !emailRegex.test(email)) errors.push("Неверный формат email");
+    if (!date) errors.push("Выберите дату занятия");
+    if (!timeSlot) errors.push("Выберите время занятия");
+    if (!subject) errors.push("Укажите предмет изучения");
+
+    return errors;
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (!date || !timeSlot) {
+
+    const errors = validateForm();
+    if (errors.length > 0) {
       toast({
-        title: "Ошибка",
-        description: "Пожалуйста, выберите дату и время занятия.",
+        title: "Ошибка заполнения",
+        description: errors.join('\n'),
         variant: "destructive"
       });
       return;
     }
-    
+
     setLoading(true);
-    
-    // Simulate API call
-    setTimeout(() => {
-      setLoading(false);
+
+    try {
+      const templateParams = {
+        name,
+        phone,
+        email: email || 'Не указан',
+        subject,
+        message: message || 'Не указано',
+        date: date ? format(date, 'dd.MM.yyyy') : 'Не указана',
+        timeSlot,
+        to_email: EMAILJS_CONFIG.TO_EMAIL
+      };
+
+      await emailjs.send(
+        EMAILJS_CONFIG.SERVICE_ID,
+        EMAILJS_CONFIG.TEMPLATE_ID,
+        templateParams,
+        EMAILJS_CONFIG.USER_ID
+      );
+
       setShowConfetti(true);
       setShowSuccess(true);
-      
+
       toast({
         title: "Заявка отправлена!",
         description: "Мы свяжемся с вами в ближайшее время для подтверждения записи."
       });
-      
-      // Reset form after delay to show success animation
+
       setTimeout(() => {
         setName("");
         setPhone("");
@@ -86,20 +125,26 @@ const Booking = () => {
         setTimeSlot(undefined);
         setShowSuccess(false);
       }, 3000);
-      
-      // Hide confetti after longer delay
-      setTimeout(() => {
-        setShowConfetti(false);
-      }, 5000);
-    }, 1000);
+
+    } catch (error) {
+      console.error('Ошибка отправки:', error);
+      toast({
+        title: "Ошибка",
+        description: "Произошла ошибка при отправке формы. Попробуйте еще раз.",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+      setTimeout(() => setShowConfetti(false), 5000);
+    }
   };
 
   const getAvailableTimeSlots = () => {
     if (!date) return timeSlots;
-    
+
     const dateString = format(date, "yyyy-MM-dd");
     const booked = bookedSlots[dateString] || [];
-    
+
     return timeSlots.filter(slot => !booked.includes(slot));
   };
 
@@ -108,7 +153,7 @@ const Booking = () => {
   return (
     <section id="booking" className="py-20 bg-white relative overflow-hidden">
       <Confetti isActive={showConfetti} />
-      
+
       <div className="container mx-auto px-4">
         <div className="text-center mb-16">
           <h2 className="text-3xl font-bold text-math-primary mb-4">Запись на занятия</h2>
@@ -118,7 +163,7 @@ const Booking = () => {
             Я свяжусь с вами в течение 24 часов.
           </p>
         </div>
-        
+
         <AnimatePresence>
           {showSuccess ? (
             <motion.div
@@ -144,7 +189,7 @@ const Booking = () => {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                     </svg>
                   </motion.div>
-                  
+
                   <motion.h3
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
@@ -153,7 +198,7 @@ const Booking = () => {
                   >
                     Заявка успешно отправлена!
                   </motion.h3>
-                  
+
                   <motion.p
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
@@ -177,42 +222,42 @@ const Booking = () => {
                     <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">
                       Ваше имя*
                     </label>
-                    <Input 
-                      id="name" 
-                      value={name} 
-                      onChange={(e) => setName(e.target.value)} 
-                      placeholder="Введите ваше имя" 
-                      required 
+                    <Input
+                      id="name"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      placeholder="Введите ваше имя"
+                      required
                     />
                   </div>
-                  
+
                   <div>
                     <label htmlFor="phone" className="block text-sm font-medium text-gray-700 mb-1">
                       Телефон*
                     </label>
-                    <Input 
-                      id="phone" 
-                      type="tel" 
-                      value={phone} 
-                      onChange={(e) => setPhone(e.target.value)} 
-                      placeholder="+7 (___) ___-__-__" 
-                      required 
+                    <Input
+                      id="phone"
+                      type="tel"
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                      placeholder="+7 (___) ___-__-__"
+                      required
                     />
                   </div>
-                  
+
                   <div>
                     <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
                       Email
                     </label>
-                    <Input 
-                      id="email" 
-                      type="email" 
-                      value={email} 
-                      onChange={(e) => setEmail(e.target.value)} 
-                      placeholder="example@mail.com" 
+                    <Input
+                      id="email"
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="example@mail.com"
                     />
                   </div>
-                  
+
                   <div>
                     <label htmlFor="subject" className="block text-sm font-medium text-gray-700 mb-1">
                       Предмет*
@@ -230,21 +275,21 @@ const Booking = () => {
                       </SelectContent>
                     </Select>
                   </div>
-                  
+
                   <div>
                     <label htmlFor="message" className="block text-sm font-medium text-gray-700 mb-1">
                       Сообщение
                     </label>
-                    <Textarea 
-                      id="message" 
-                      value={message} 
-                      onChange={(e) => setMessage(e.target.value)} 
-                      placeholder="Опишите ваши цели или задайте вопросы..." 
+                    <Textarea
+                      id="message"
+                      value={message}
+                      onChange={(e) => setMessage(e.target.value)}
+                      placeholder="Опишите ваши цели или задайте вопросы..."
                       className="h-[120px]"
                     />
                   </div>
                 </div>
-                
+
                 <div className="space-y-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-3">
