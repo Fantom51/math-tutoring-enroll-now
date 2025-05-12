@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,6 +23,8 @@ import {
   CardContent,
 } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
+import Confetti from "@/components/ui/confetti";
+import { motion, AnimatePresence } from "framer-motion";
 
 const timeSlots = [
   "09:00", "10:30", "12:00", "13:30", "15:00", "16:30", "18:00", "19:30"
@@ -46,6 +47,8 @@ const Booking = () => {
   const [date, setDate] = useState<Date | undefined>(undefined);
   const [timeSlot, setTimeSlot] = useState<string | undefined>(undefined);
   const [loading, setLoading] = useState(false);
+  const [showConfetti, setShowConfetti] = useState(false);
+  const [showSuccess, setShowSuccess] = useState(false);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -64,19 +67,30 @@ const Booking = () => {
     // Simulate API call
     setTimeout(() => {
       setLoading(false);
+      setShowConfetti(true);
+      setShowSuccess(true);
+      
       toast({
         title: "Заявка отправлена!",
         description: "Мы свяжемся с вами в ближайшее время для подтверждения записи."
       });
       
-      // Reset form
-      setName("");
-      setPhone("");
-      setEmail("");
-      setSubject("");
-      setMessage("");
-      setDate(undefined);
-      setTimeSlot(undefined);
+      // Reset form after delay to show success animation
+      setTimeout(() => {
+        setName("");
+        setPhone("");
+        setEmail("");
+        setSubject("");
+        setMessage("");
+        setDate(undefined);
+        setTimeSlot(undefined);
+        setShowSuccess(false);
+      }, 3000);
+      
+      // Hide confetti after longer delay
+      setTimeout(() => {
+        setShowConfetti(false);
+      }, 5000);
     }, 1000);
   };
 
@@ -92,7 +106,9 @@ const Booking = () => {
   const availableTimeSlots = getAvailableTimeSlots();
 
   return (
-    <section id="booking" className="py-20 bg-white">
+    <section id="booking" className="py-20 bg-white relative overflow-hidden">
+      <Confetti isActive={showConfetti} />
+      
       <div className="container mx-auto px-4">
         <div className="text-center mb-16">
           <h2 className="text-3xl font-bold text-math-primary mb-4">Запись на занятия</h2>
@@ -103,168 +119,241 @@ const Booking = () => {
           </p>
         </div>
         
-        <div className="max-w-5xl mx-auto">
-          <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            <div className="space-y-4">
-              <div>
-                <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">
-                  Ваше имя*
-                </label>
-                <Input 
-                  id="name" 
-                  value={name} 
-                  onChange={(e) => setName(e.target.value)} 
-                  placeholder="Введите ваше имя" 
-                  required 
-                />
-              </div>
-              
-              <div>
-                <label htmlFor="phone" className="block text-sm font-medium text-gray-700 mb-1">
-                  Телефон*
-                </label>
-                <Input 
-                  id="phone" 
-                  type="tel" 
-                  value={phone} 
-                  onChange={(e) => setPhone(e.target.value)} 
-                  placeholder="+7 (___) ___-__-__" 
-                  required 
-                />
-              </div>
-              
-              <div>
-                <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
-                  Email
-                </label>
-                <Input 
-                  id="email" 
-                  type="email" 
-                  value={email} 
-                  onChange={(e) => setEmail(e.target.value)} 
-                  placeholder="example@mail.com" 
-                />
-              </div>
-              
-              <div>
-                <label htmlFor="subject" className="block text-sm font-medium text-gray-700 mb-1">
-                  Предмет*
-                </label>
-                <Select value={subject} onValueChange={setSubject} required>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Выберите предмет" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="school">Школьная математика</SelectItem>
-                    <SelectItem value="oge">Подготовка к ОГЭ</SelectItem>
-                    <SelectItem value="ege">Подготовка к ЕГЭ</SelectItem>
-                    <SelectItem value="olympiad">Олимпиадная математика</SelectItem>
-                    <SelectItem value="university">Высшая математика</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              
-              <div>
-                <label htmlFor="message" className="block text-sm font-medium text-gray-700 mb-1">
-                  Сообщение
-                </label>
-                <Textarea 
-                  id="message" 
-                  value={message} 
-                  onChange={(e) => setMessage(e.target.value)} 
-                  placeholder="Опишите ваши цели или задайте вопросы..." 
-                  className="h-[120px]"
-                />
-              </div>
-            </div>
-            
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-3">
-                  Выберите дату и время занятия*
-                </label>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button
-                      id="date"
-                      variant="outline"
-                      className={cn(
-                        "w-full justify-start text-left font-normal",
-                        !date && "text-muted-foreground"
-                      )}
-                    >
-                      <CalendarIcon className="mr-2 h-4 w-4" />
-                      {date ? format(date, "PPP") : <span>Выберите дату</span>}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
-                    <Calendar
-                      mode="single"
-                      selected={date}
-                      onSelect={setDate}
-                      initialFocus
-                      className={cn("p-3 pointer-events-auto")}
-                      disabled={(date) => {
-                        const now = new Date();
-                        const yesterday = new Date(now);
-                        yesterday.setDate(yesterday.getDate() - 1);
-                        return date < yesterday;
-                      }}
-                    />
-                  </PopoverContent>
-                </Popover>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-3">
-                  Доступное время
-                </label>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                  {availableTimeSlots.length > 0 ? (
-                    availableTimeSlots.map((slot) => (
-                      <Card
-                        key={slot}
-                        className={cn(
-                          "cursor-pointer hover:border-math-secondary transition-colors",
-                          timeSlot === slot
-                            ? "border-2 border-math-secondary bg-math-light"
-                            : "border border-gray-200"
-                        )}
-                        onClick={() => setTimeSlot(slot)}
-                      >
-                        <CardContent className="flex items-center justify-center py-3 px-2">
-                          <Clock className="h-4 w-4 mr-2 text-math-secondary" />
-                          <span>{slot}</span>
-                        </CardContent>
-                      </Card>
-                    ))
-                  ) : (
-                    <p className="col-span-4 text-center text-gray-500">
-                      {date
-                        ? "Нет доступного времени на выбранную дату"
-                        : "Пожалуйста, выберите дату для просмотра доступного времени"}
-                    </p>
-                  )}
+        <AnimatePresence>
+          {showSuccess ? (
+            <motion.div
+              initial={{ scale: 0.8, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.8, opacity: 0 }}
+              transition={{ type: "spring", stiffness: 300, damping: 20 }}
+              className="max-w-md mx-auto p-8 bg-math-light rounded-lg shadow-lg mb-12 border-2 border-math-secondary"
+            >
+              <motion.div
+                initial={{ y: -20 }}
+                animate={{ y: 0 }}
+                transition={{ type: "spring", stiffness: 300, damping: 20, delay: 0.2 }}
+              >
+                <div className="text-center">
+                  <motion.div
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1, rotate: [0, 10, -10, 0] }}
+                    transition={{ delay: 0.4, duration: 0.8 }}
+                    className="w-20 h-20 rounded-full bg-math-secondary flex items-center justify-center mx-auto mb-4"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                  </motion.div>
+                  
+                  <motion.h3
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ delay: 0.6 }}
+                    className="text-xl font-bold text-math-primary"
+                  >
+                    Заявка успешно отправлена!
+                  </motion.h3>
+                  
+                  <motion.p
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ delay: 0.8 }}
+                    className="mt-2 text-gray-600"
+                  >
+                    Спасибо за запись! Мы свяжемся с вами в ближайшее время.
+                  </motion.p>
                 </div>
-              </div>
+              </motion.div>
+            </motion.div>
+          ) : (
+            <motion.div
+              initial={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="max-w-5xl mx-auto"
+            >
+              <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div className="space-y-4">
+                  <div>
+                    <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">
+                      Ваше имя*
+                    </label>
+                    <Input 
+                      id="name" 
+                      value={name} 
+                      onChange={(e) => setName(e.target.value)} 
+                      placeholder="Введите ваше имя" 
+                      required 
+                    />
+                  </div>
+                  
+                  <div>
+                    <label htmlFor="phone" className="block text-sm font-medium text-gray-700 mb-1">
+                      Телефон*
+                    </label>
+                    <Input 
+                      id="phone" 
+                      type="tel" 
+                      value={phone} 
+                      onChange={(e) => setPhone(e.target.value)} 
+                      placeholder="+7 (___) ___-__-__" 
+                      required 
+                    />
+                  </div>
+                  
+                  <div>
+                    <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
+                      Email
+                    </label>
+                    <Input 
+                      id="email" 
+                      type="email" 
+                      value={email} 
+                      onChange={(e) => setEmail(e.target.value)} 
+                      placeholder="example@mail.com" 
+                    />
+                  </div>
+                  
+                  <div>
+                    <label htmlFor="subject" className="block text-sm font-medium text-gray-700 mb-1">
+                      Предмет*
+                    </label>
+                    <Select value={subject} onValueChange={setSubject} required>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Выберите предмет" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="school">Школьная математика</SelectItem>
+                        <SelectItem value="oge">Подготовка к ОГЭ</SelectItem>
+                        <SelectItem value="ege">Подготовка к ЕГЭ</SelectItem>
+                        <SelectItem value="olympiad">Олимпиадная математика</SelectItem>
+                        <SelectItem value="university">Высшая математика</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  
+                  <div>
+                    <label htmlFor="message" className="block text-sm font-medium text-gray-700 mb-1">
+                      Сообщение
+                    </label>
+                    <Textarea 
+                      id="message" 
+                      value={message} 
+                      onChange={(e) => setMessage(e.target.value)} 
+                      placeholder="Опишите ваши цели или задайте вопросы..." 
+                      className="h-[120px]"
+                    />
+                  </div>
+                </div>
+                
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-3">
+                      Выберите дату и время занятия*
+                    </label>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          id="date"
+                          variant="outline"
+                          className={cn(
+                            "w-full justify-start text-left font-normal",
+                            !date && "text-muted-foreground"
+                          )}
+                        >
+                          <CalendarIcon className="mr-2 h-4 w-4" />
+                          {date ? format(date, "PPP") : <span>Выберите дату</span>}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={date}
+                          onSelect={setDate}
+                          initialFocus
+                          className={cn("p-3 pointer-events-auto")}
+                          disabled={(date) => {
+                            const now = new Date();
+                            const yesterday = new Date(now);
+                            yesterday.setDate(yesterday.getDate() - 1);
+                            return date < yesterday;
+                          }}
+                        />
+                      </PopoverContent>
+                    </Popover>
+                  </div>
 
-              <div className="pt-6">
-                <Button
-                  type="submit"
-                  className="w-full bg-math-secondary hover:bg-math-primary transition-colors"
-                  disabled={loading || !date || !timeSlot}
-                >
-                  {loading ? "Отправка..." : "Отправить заявку"}
-                </Button>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-3">
+                      Доступное время
+                    </label>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                      {availableTimeSlots.length > 0 ? (
+                        availableTimeSlots.map((slot) => (
+                          <motion.div
+                            key={slot}
+                            whileHover={{ scale: 1.05 }}
+                            whileTap={{ scale: 0.95 }}
+                          >
+                            <Card
+                              className={cn(
+                                "cursor-pointer hover:border-math-secondary transition-colors",
+                                timeSlot === slot
+                                  ? "border-2 border-math-secondary bg-math-light"
+                                  : "border border-gray-200"
+                              )}
+                              onClick={() => setTimeSlot(slot)}
+                            >
+                              <CardContent className="flex items-center justify-center py-3 px-2">
+                                <Clock className="h-4 w-4 mr-2 text-math-secondary" />
+                                <span>{slot}</span>
+                              </CardContent>
+                            </Card>
+                          </motion.div>
+                        ))
+                      ) : (
+                        <p className="col-span-4 text-center text-gray-500">
+                          {date
+                            ? "Нет доступного времени на выбранную дату"
+                            : "Пожалуйста, выберите дату для просмотра доступного времени"}
+                        </p>
+                      )}
+                    </div>
+                  </div>
 
-                <p className="text-xs text-gray-500 mt-2">
-                  Нажимая кнопку "Отправить заявку", вы соглашаетесь с обработкой персональных данных
-                  в соответствии с политикой конфиденциальности.
-                </p>
-              </div>
-            </div>
-          </form>
-        </div>
+                  <div className="pt-6">
+                    <motion.div
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                    >
+                      <Button
+                        type="submit"
+                        className="w-full bg-math-secondary hover:bg-math-primary transition-colors"
+                        disabled={loading || !date || !timeSlot}
+                      >
+                        {loading ? (
+                          <span className="flex items-center">
+                            <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            Отправка...
+                          </span>
+                        ) : (
+                          "Отправить заявку"
+                        )}
+                      </Button>
+                    </motion.div>
+
+                    <p className="text-xs text-gray-500 mt-2">
+                      Нажимая кнопку "Отправить заявку", вы соглашаетесь с обработкой персональных данных
+                      в соответствии с политикой конфиденциальности.
+                    </p>
+                  </div>
+                </div>
+              </form>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </section>
   );
