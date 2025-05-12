@@ -5,6 +5,10 @@ import { componentTagger } from "lovable-tagger";
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
+  preview: {
+    port: 10000, // Render требует этот порт
+    strictPort: true // Запрещает использовать другие порты
+  },
   server: {
     host: "::",
     port: 8080,
