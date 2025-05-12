@@ -7,10 +7,17 @@ import Services from "@/components/home/Services";
 import Pricing from "@/components/home/Pricing";
 import Testimonials from "@/components/home/Testimonials";
 import Booking from "@/components/home/Booking";
+import { motion } from "framer-motion";
 
 const Index = () => {
   return (
-    <div className="min-h-screen bg-white">
+    <motion.div 
+      className="min-h-screen bg-white"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.5 }}
+    >
       <Navbar />
       <main>
         <Hero />
@@ -21,7 +28,7 @@ const Index = () => {
         <Booking />
       </main>
       <Footer />
-    </div>
+    </motion.div>
   );
 };
 

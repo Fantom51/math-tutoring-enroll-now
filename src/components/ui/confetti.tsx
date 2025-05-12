@@ -3,6 +3,7 @@
 
 import React, { useEffect, useState } from "react";
 import ReactConfetti from "react-confetti";
+import { motion } from "framer-motion";
 
 interface ConfettiProps {
   isActive: boolean;
@@ -40,22 +41,30 @@ const Confetti = ({ isActive }: ConfettiProps) => {
   if (!showConfetti) return null;
 
   return (
-    <ReactConfetti
-      width={windowDimensions.width}
-      height={windowDimensions.height}
-      recycle={false}
-      numberOfPieces={500}
-      gravity={0.2}
-      colors={[
-        "#FFC700", // Gold
-        "#FF4D6D", // Pink
-        "#7209B7", // Purple
-        "#4CC9F0", // Blue
-        "#F72585", // Magenta
-        "#3B82F6", // Math secondary color
-        "#1E3A8A", // Math primary color
-      ]}
-    />
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.5 }}
+      className="fixed inset-0 z-50 pointer-events-none"
+    >
+      <ReactConfetti
+        width={windowDimensions.width}
+        height={windowDimensions.height}
+        recycle={false}
+        numberOfPieces={500}
+        gravity={0.2}
+        colors={[
+          "#FFC700", // Gold
+          "#FF4D6D", // Pink
+          "#7209B7", // Purple
+          "#4CC9F0", // Blue
+          "#F72585", // Magenta
+          "#3B82F6", // Math secondary color
+          "#1E3A8A", // Math primary color
+        ]}
+      />
+    </motion.div>
   );
 };
 
