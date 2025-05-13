@@ -1,0 +1,399 @@
+
+import { useState, useEffect } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { supabase } from '@/lib/supabaseClient';
+import { useToast } from '@/hooks/use-toast';
+import { Loader, Upload, FileText, Plus, Users, UserCheck, BookOpen } from 'lucide-react';
+import { motion } from 'framer-motion';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+
+interface Student {
+  id: string;
+  email: string;
+  full_name: string | null;
+}
+
+interface Homework {
+  id: string;
+  title: string;
+  description: string;
+  file_url: string;
+  created_at: string;
+}
+
+export default function TeacherDashboard() {
+  const { user } = useAuth();
+  const { toast } = useToast();
+  const [students, setStudents] = useState<Student[]>([]);
+  const [homeworks, setHomeworks] = useState<Homework[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [uploading, setUploading] = useState(false);
+  const [activeTab, setActiveTab] = useState<'students' | 'homeworks'>('students');
+  
+  const [newHomework, setNewHomework] = useState({
+    title: '',
+    description: '',
+    file: null as File | null,
+  });
+  
+  useEffect(() => {
+    fetchStudents();
+    fetchHomeworks();
+  }, [user]);
+
+  const fetchStudents = async () => {
+    try {
+      if (!user) return;
+      
+      // Получаем пользователей с ролью "студент"
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('id, email, full_name')
+        .eq('role', 'student');
+
+      if (error) throw error;
+      
+      setStudents(data || []);
+    } catch (error) {
+      console.error('Ошибка при загрузке списка студентов:', error);
+      toast({
+        title: 'Ошибка',
+        description: 'Не удалось загрузить список студентов',
+        variant: 'destructive'
+      });
+    }
+  };
+
+  const fetchHomeworks = async () => {
+    try {
+      if (!user) return;
+      
+      // Получаем все домашние задания, созданные текущим преподавателем
+      const { data, error } = await supabase
+        .from('homeworks')
+        .select('*')
+        .eq('teacher_id', user.id)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      
+      setHomeworks(data || []);
+    } catch (error) {
+      console.error('Ошибка при загрузке домашних заданий:', error);
+      toast({
+        title: 'Ошибка',
+        description: 'Не удалось загрузить домашние задания',
+        variant: 'destructive'
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0] || null;
+    setNewHomework({ ...newHomework, file });
+  };
+
+  const createHomework = async () => {
+    try {
+      if (!user || !newHomework.file || !newHomework.title) {
+        toast({
+          title: 'Ошибка',
+          description: 'Заполните все поля и выберите файл',
+          variant: 'destructive'
+        });
+        return;
+      }
+
+      setUploading(true);
+
+      // 1. Загрузка файла в Storage
+      const fileExt = newHomework.file.name.split('.').pop();
+      const fileName = `${Math.random().toString(36).substring(2)}-${Date.now()}.${fileExt}`;
+      const filePath = `homeworks/${user.id}/${fileName}`;
+
+      const { error: uploadError, data } = await supabase.storage
+        .from('homework_files')
+        .upload(filePath, newHomework.file);
+
+      if (uploadError) throw uploadError;
+
+      const fileUrl = data?.path ?? '';
+
+      // 2. Создание записи о домашнем задании
+      const { error, data: homeworkData } = await supabase
+        .from('homeworks')
+        .insert([
+          {
+            title: newHomework.title,
+            description: newHomework.description,
+            file_url: fileUrl,
+            teacher_id: user.id
+          }
+        ])
+        .select();
+
+      if (error) throw error;
+
+      // 3. Назначаем это задание всем студентам
+      if (homeworkData && homeworkData.length > 0) {
+        const homeworkId = homeworkData[0].id;
+        
+        const studentAssignments = students.map(student => ({
+          student_id: student.id,
+          homework_id: homeworkId
+        }));
+        
+        if (studentAssignments.length > 0) {
+          const { error: assignError } = await supabase
+            .from('student_homeworks')
+            .insert(studentAssignments);
+          
+          if (assignError) throw assignError;
+        }
+      }
+
+      // Очищаем форму и обновляем список
+      setNewHomework({
+        title: '',
+        description: '',
+        file: null
+      });
+      
+      await fetchHomeworks();
+
+      toast({
+        title: 'Задание создано',
+        description: 'Новое домашнее задание успешно создано'
+      });
+
+    } catch (error) {
+      console.error('Ошибка при создании домашнего задания:', error);
+      toast({
+        title: 'Ошибка',
+        description: 'Не удалось создать домашнее задание',
+        variant: 'destructive'
+      });
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const downloadHomework = async (fileUrl: string, fileName: string) => {
+    try {
+      const { data, error } = await supabase.storage
+        .from('homework_files')
+        .download(fileUrl);
+
+      if (error) throw error;
+
+      const blob = new Blob([data]);
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (error) {
+      console.error('Ошибка при скачивании файла:', error);
+      toast({
+        title: 'Ошибка скачивания',
+        description: 'Не удалось скачать файл',
+        variant: 'destructive'
+      });
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center h-64">
+        <Loader className="h-8 w-8 animate-spin text-math-primary" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div>
+          <h2 className="text-2xl font-bold">Панель преподавателя</h2>
+          <p className="text-gray-600">Управление учениками и домашними заданиями</p>
+        </div>
+        
+        <div className="flex space-x-4">
+          <Button 
+            variant={activeTab === 'students' ? 'default' : 'outline'} 
+            onClick={() => setActiveTab('students')}
+            className="flex items-center gap-2"
+          >
+            <Users className="w-4 h-4" />
+            <span>Ученики</span>
+          </Button>
+          <Button 
+            variant={activeTab === 'homeworks' ? 'default' : 'outline'} 
+            onClick={() => setActiveTab('homeworks')}
+            className="flex items-center gap-2"
+          >
+            <BookOpen className="w-4 h-4" />
+            <span>Задания</span>
+          </Button>
+        </div>
+      </div>
+      
+      {activeTab === 'students' && (
+        <>
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Users className="w-5 h-5" />
+                <span>Мои ученики</span>
+              </CardTitle>
+              <CardDescription>Список учеников, зарегистрированных в системе</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {students.length === 0 ? (
+                <div className="text-center p-4 bg-gray-50 rounded-lg">
+                  <p className="text-gray-600">На данный момент нет учеников в системе</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {students.map((student, index) => (
+                    <motion.div
+                      key={student.id}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.2, delay: index * 0.05 }}
+                      className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50"
+                    >
+                      <div>
+                        <p className="font-medium">{student.full_name || 'Имя не указано'}</p>
+                        <p className="text-sm text-gray-600">{student.email}</p>
+                      </div>
+                      <UserCheck className="text-green-500 w-5 h-5" />
+                    </motion.div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </>
+      )}
+      
+      {activeTab === 'homeworks' && (
+        <>
+          <div className="flex justify-end">
+            <Dialog>
+              <DialogTrigger asChild>
+                <Button className="flex items-center gap-2">
+                  <Plus className="w-4 h-4" />
+                  <span>Создать задание</span>
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-[500px]">
+                <DialogHeader>
+                  <DialogTitle>Создать новое задание</DialogTitle>
+                  <DialogDescription>
+                    Заполните форму для создания нового домашнего задания
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4 py-4">
+                  <div className="space-y-2">
+                    <label htmlFor="title" className="text-sm font-medium">Название</label>
+                    <Input
+                      id="title"
+                      value={newHomework.title}
+                      onChange={(e) => setNewHomework({ ...newHomework, title: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label htmlFor="description" className="text-sm font-medium">Описание</label>
+                    <Textarea
+                      id="description"
+                      value={newHomework.description}
+                      onChange={(e) => setNewHomework({ ...newHomework, description: e.target.value })}
+                      rows={4}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label htmlFor="file" className="text-sm font-medium">Файл задания</label>
+                    <div className="flex items-center space-x-2">
+                      <Input
+                        id="file"
+                        type="file"
+                        accept=".pdf,.doc,.docx"
+                        onChange={handleFileChange}
+                      />
+                    </div>
+                  </div>
+                  <Button 
+                    onClick={createHomework} 
+                    className="w-full"
+                    disabled={uploading}
+                  >
+                    {uploading ? (
+                      <>
+                        <Loader className="mr-2 h-4 w-4 animate-spin" />
+                        Создание...
+                      </>
+                    ) : 'Создать задание'}
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
+          </div>
+          
+          <div className="grid gap-6 md:grid-cols-2">
+            {homeworks.map((homework, index) => (
+              <motion.div
+                key={homework.id}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3, delay: index * 0.05 }}
+              >
+                <Card>
+                  <CardHeader>
+                    <CardTitle>{homework.title}</CardTitle>
+                    <CardDescription>
+                      Дата публикации: {new Date(homework.created_at).toLocaleDateString('ru-RU')}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="mb-4">{homework.description}</p>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="flex items-center space-x-2"
+                      onClick={() => downloadHomework(homework.file_url, `${homework.title}.pdf`)}
+                    >
+                      <FileText className="h-4 w-4" />
+                      <span>Скачать задание</span>
+                    </Button>
+                  </CardContent>
+                </Card>
+              </motion.div>
+            ))}
+            
+            {homeworks.length === 0 && (
+              <div className="col-span-2 text-center p-8 bg-gray-50 rounded-lg">
+                <p className="text-gray-600">У вас пока нет созданных домашних заданий</p>
+              </div>
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}

@@ -2,12 +2,20 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
+import { useAuth } from '@/contexts/AuthContext';
+import { User, LogOut } from "lucide-react";
 
 const Navbar = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const { user, signOut } = useAuth();
 
   const toggleMenu = () => {
     setIsMenuOpen(!isMenuOpen);
+  };
+
+  const handleLogout = async () => {
+    await signOut();
+    window.location.href = '/';
   };
 
   return (
@@ -36,13 +44,39 @@ const Navbar = () => {
           </a>
         </div>
 
-        <Button 
-          variant="default" 
-          className="bg-math-secondary hover:bg-math-primary hidden md:block transition-colors"
-          onClick={() => document.getElementById('booking')?.scrollIntoView({ behavior: 'smooth' })}
-        >
-          Записаться
-        </Button>
+        <div className="hidden md:flex items-center space-x-4">
+          {user ? (
+            <>
+              <Link to="/dashboard">
+                <Button variant="outline" className="flex items-center space-x-2">
+                  <User className="h-4 w-4" />
+                  <span>Личный кабинет</span>
+                </Button>
+              </Link>
+              <Button 
+                variant="ghost" 
+                onClick={handleLogout}
+                className="flex items-center space-x-2 text-red-500 hover:text-red-700"
+              >
+                <LogOut className="h-4 w-4" />
+                <span>Выйти</span>
+              </Button>
+            </>
+          ) : (
+            <>
+              <Link to="/login">
+                <Button variant="outline">
+                  Войти
+                </Button>
+              </Link>
+              <Link to="/register">
+                <Button variant="default" className="bg-math-secondary hover:bg-math-primary transition-colors">
+                  Регистрация
+                </Button>
+              </Link>
+            </>
+          )}
+        </div>
 
         {/* Mobile Menu Button */}
         <button className="md:hidden text-gray-700" onClick={toggleMenu}>
@@ -75,16 +109,35 @@ const Navbar = () => {
             <a href="#contact" className="text-gray-700 hover:text-math-primary px-4 py-2" onClick={toggleMenu}>
               Контакты
             </a>
-            <Button 
-              variant="default" 
-              className="bg-math-secondary hover:bg-math-primary mx-4 transition-colors"
-              onClick={() => {
-                document.getElementById('booking')?.scrollIntoView({ behavior: 'smooth' });
-                toggleMenu();
-              }}
-            >
-              Записаться
-            </Button>
+            
+            {user ? (
+              <>
+                <Link to="/dashboard" className="text-gray-700 hover:text-math-primary px-4 py-2" onClick={toggleMenu}>
+                  Личный кабинет
+                </Link>
+                <Button 
+                  variant="ghost" 
+                  onClick={handleLogout}
+                  className="flex items-center space-x-2 text-red-500 hover:text-red-700 mx-4"
+                >
+                  <LogOut className="h-4 w-4" />
+                  <span>Выйти</span>
+                </Button>
+              </>
+            ) : (
+              <div className="flex flex-col space-y-2 px-4">
+                <Link to="/login" onClick={toggleMenu}>
+                  <Button variant="outline" className="w-full">
+                    Войти
+                  </Button>
+                </Link>
+                <Link to="/register" onClick={toggleMenu}>
+                  <Button variant="default" className="w-full bg-math-secondary hover:bg-math-primary">
+                    Регистрация
+                  </Button>
+                </Link>
+              </div>
+            )}
           </div>
         </div>
       )}
