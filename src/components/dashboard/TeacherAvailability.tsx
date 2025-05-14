@@ -4,6 +4,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabaseClient';
 import { useToast } from '@/hooks/use-toast';
 import { format, parse, startOfDay, addDays, isBefore } from 'date-fns';
+import { ru } from 'date-fns/locale';
 import {
   Card,
   CardContent,
