@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
@@ -7,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { supabase } from '@/lib/supabaseClient';
 import { useToast } from '@/hooks/use-toast';
-import { Loader, Upload, FileText, Plus, Users, UserCheck, BookOpen } from 'lucide-react';
+import { Loader, Upload, FileText, Plus, Users, UserCheck, BookOpen, CalendarDays } from 'lucide-react';
 import { motion } from 'framer-motion';
 import {
   Dialog,
@@ -17,6 +16,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import TeacherAvailability from './TeacherAvailability';
 
 interface Student {
   id: string;
@@ -39,7 +39,7 @@ export default function TeacherDashboard() {
   const [homeworks, setHomeworks] = useState<Homework[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
-  const [activeTab, setActiveTab] = useState<'students' | 'homeworks'>('students');
+  const [activeTab, setActiveTab] = useState<'students' | 'homeworks' | 'availability'>('students');
   
   const [newHomework, setNewHomework] = useState({
     title: '',
@@ -233,7 +233,7 @@ export default function TeacherDashboard() {
           <p className="text-gray-600">Управление учениками и домашними заданиями</p>
         </div>
         
-        <div className="flex space-x-4">
+        <div className="flex flex-wrap gap-2">
           <Button 
             variant={activeTab === 'students' ? 'default' : 'outline'} 
             onClick={() => setActiveTab('students')}
@@ -249,6 +249,14 @@ export default function TeacherDashboard() {
           >
             <BookOpen className="w-4 h-4" />
             <span>Задания</span>
+          </Button>
+          <Button 
+            variant={activeTab === 'availability' ? 'default' : 'outline'} 
+            onClick={() => setActiveTab('availability')}
+            className="flex items-center gap-2"
+          >
+            <CalendarDays className="w-4 h-4" />
+            <span>Расписание</span>
           </Button>
         </div>
       </div>
@@ -393,6 +401,10 @@ export default function TeacherDashboard() {
             )}
           </div>
         </>
+      )}
+      
+      {activeTab === 'availability' && (
+        <TeacherAvailability />
       )}
     </div>
   );

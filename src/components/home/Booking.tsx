@@ -1,10 +1,11 @@
-import { useState } from "react";
+
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Calendar } from "@/components/ui/calendar";
 import { CalendarIcon, Clock } from "lucide-react";
-import { format } from "date-fns";
+import { format, addDays } from "date-fns";
 import {
   Select,
   SelectContent,
@@ -26,6 +27,7 @@ import { useToast } from "@/hooks/use-toast";
 import Confetti from "@/components/ui/confetti";
 import { motion, AnimatePresence } from "framer-motion";
 import emailjs from 'emailjs-com';
+import { supabase } from '@/lib/supabaseClient';
 
 // Конфигурация EmailJS (ЗАМЕНИТЕ НА СВОИ ДАННЫЕ)
 const EMAILJS_CONFIG = {
@@ -35,15 +37,9 @@ const EMAILJS_CONFIG = {
   TO_EMAIL: 'sashabrawl46@gmail.com' // Ваша почта для получения заявок
 };
 
-const timeSlots = [
+const DEFAULT_TIME_SLOTS = [
   "09:00", "10:30", "12:00", "13:30", "15:00", "16:30", "18:00", "19:30"
 ];
-
-const bookedSlots = {
-  "2025-05-15": ["09:00", "12:00", "16:30"],
-  "2025-05-16": ["10:30", "15:00"],
-  "2025-05-20": ["09:00", "10:30", "13:30", "18:00"],
-};
 
 const Booking = () => {
   const { toast } = useToast();
@@ -57,6 +53,76 @@ const Booking = () => {
   const [loading, setLoading] = useState(false);
   const [showConfetti, setShowConfetti] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
+  const [availableDates, setAvailableDates] = useState<Date[]>([]);
+  const [bookedSlots, setBookedSlots] = useState<{[key: string]: string[]}>({});
+
+  // Fetch available dates and time slots from teacher's availability
+  useEffect(() => {
+    fetchTeacherAvailability();
+    fetchBookedSlots();
+  }, []);
+
+  const fetchTeacherAvailability = async () => {
+    try {
+      // Get all teacher availability entries
+      const { data, error } = await supabase
+        .from('teacher_availability')
+        .select('*')
+        .order('date', { ascending: true });
+        
+      if (error) throw error;
+      
+      if (data && data.length > 0) {
+        // Group by date
+        const availabilityByDate = new Map();
+        
+        data.forEach(item => {
+          if (!availabilityByDate.has(item.date)) {
+            availabilityByDate.set(item.date, []);
+          }
+          availabilityByDate.get(item.date).push(item.time_slot);
+        });
+        
+        // Convert dates to Date objects
+        const dateObjects = Array.from(availabilityByDate.keys()).map(dateStr => 
+          new Date(dateStr)
+        );
+        
+        setAvailableDates(dateObjects);
+      }
+    } catch (error) {
+      console.error('Error fetching teacher availability:', error);
+    }
+  };
+  
+  const fetchBookedSlots = async () => {
+    try {
+      // Get all booked slots
+      const { data, error } = await supabase
+        .from('bookings')
+        .select('*')
+        .gte('date', new Date().toISOString().split('T')[0])
+        .order('date', { ascending: true });
+        
+      if (error) throw error;
+      
+      if (data && data.length > 0) {
+        // Transform to the format we need
+        const booked: {[key: string]: string[]} = {};
+        
+        data.forEach(item => {
+          if (!booked[item.date]) {
+            booked[item.date] = [];
+          }
+          booked[item.date].push(item.time_slot);
+        });
+        
+        setBookedSlots(booked);
+      }
+    } catch (error) {
+      console.error('Error fetching booked slots:', error);
+    }
+  };
 
   const validateForm = () => {
     const errors: string[] = [];
@@ -89,6 +155,38 @@ const Booking = () => {
     setLoading(true);
 
     try {
+      // First save the booking in the database
+      if (date && timeSlot) {
+        const formattedDate = format(date, 'yyyy-MM-dd');
+        const { error: bookingError } = await supabase
+          .from('bookings')
+          .insert([
+            {
+              name,
+              phone,
+              email: email || null,
+              subject,
+              message: message || null,
+              date: formattedDate,
+              time_slot: timeSlot,
+              status: 'pending'
+            }
+          ]);
+          
+        if (bookingError) throw bookingError;
+        
+        // Update booked slots
+        setBookedSlots(prev => {
+          const newBookedSlots = { ...prev };
+          if (!newBookedSlots[formattedDate]) {
+            newBookedSlots[formattedDate] = [];
+          }
+          newBookedSlots[formattedDate].push(timeSlot);
+          return newBookedSlots;
+        });
+      }
+      
+      // Then send email notification
       const templateParams = {
         name,
         phone,
@@ -140,12 +238,27 @@ const Booking = () => {
   };
 
   const getAvailableTimeSlots = () => {
-    if (!date) return timeSlots;
+    if (!date) return [];
 
     const dateString = format(date, "yyyy-MM-dd");
+    
+    // Get available time slots for this date from the database
+    const { data } = supabase
+      .from('teacher_availability')
+      .select('time_slot')
+      .eq('date', dateString)
+      .then(({ data }) => {
+        if (data && data.length > 0) {
+          return data.map(item => item.time_slot);
+        }
+        return DEFAULT_TIME_SLOTS;
+      });
+    
+    // Get booked slots for this date
     const booked = bookedSlots[dateString] || [];
 
-    return timeSlots.filter(slot => !booked.includes(slot));
+    // Filter out booked slots
+    return DEFAULT_TIME_SLOTS.filter(slot => !booked.includes(slot));
   };
 
   const availableTimeSlots = getAvailableTimeSlots();
@@ -317,10 +430,11 @@ const Booking = () => {
                           initialFocus
                           className={cn("p-3 pointer-events-auto")}
                           disabled={(date) => {
-                            const now = new Date();
-                            const yesterday = new Date(now);
-                            yesterday.setDate(yesterday.getDate() - 1);
-                            return date < yesterday;
+                            // Disable dates that are not in availableDates
+                            const dateStr = format(date, 'yyyy-MM-dd');
+                            return !availableDates.some(d => 
+                              format(d, 'yyyy-MM-dd') === dateStr
+                            );
                           }}
                         />
                       </PopoverContent>

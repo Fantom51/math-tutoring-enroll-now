@@ -1,13 +1,9 @@
+
 import { createClient } from '@supabase/supabase-js';
 
 // Прямое указание credentials (только для разработки!)
 const supabaseUrl = 'https://vkmhatknkasytrwqbpoj.supabase.co';
 const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZrbWhhdGtua2FzeXRyd3FicG9qIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDcxNjMxMDYsImV4cCI6MjA2MjczOTEwNn0.wDy6cZKvCE6CLFJEutPwXkCqFXoDAq7uYyUgWP8KsLk';
-
-// Проверка значений (можно удалить после настройки)
-if (!supabaseUrl || !supabaseAnonKey) {
-  console.warn('Supabase credentials are not set!');
-}
 
 // Создание клиента с дополнительными настройками
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
@@ -20,10 +16,10 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   }
 });
 
-// Проверка подключения (опционально)
+// Проверка подключения к другой таблице для отладки
 supabase
-  .from('test')
-  .select('*')
+  .from('profiles')
+  .select('count')
   .limit(1)
   .then(response => {
     if (response.error) {
