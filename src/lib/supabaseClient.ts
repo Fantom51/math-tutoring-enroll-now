@@ -27,4 +27,5 @@ supabase
     } else {
       console.log('Successfully connected to Supabase');
     }
+
   });
