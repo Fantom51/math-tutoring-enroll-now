@@ -38,7 +38,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Загрузка профиля пользователя
   const loadUserProfile = async (userId: string) => {
     try {
+      console.log("Загружаем профиль для пользователя:", userId);
       const profile = await getUserProfile(userId);
+      console.log("Полученный профиль:", profile);
       setUserProfile(profile);
     } catch (error) {
       console.error('Error loading user profile:', error);
@@ -91,54 +93,65 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signUp = async (email: string, password: string, role: 'student' | 'teacher') => {
     console.log("Starting registration for:", email, "with role:", role);
     
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: { role },
-        emailRedirectTo: window.location.origin + '/login'
-      }
-    });
+    try {
+      // Регистрируем пользователя без проверки email
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: { role },
+          // Не используем emailRedirectTo, чтобы отключить проверку почты
+        }
+      });
 
-    if (!error && data.user) {
+      if (error) {
+        console.error("Registration error:", error);
+        return { error };
+      }
+
+      if (!data.user) {
+        console.error("No user data returned after registration");
+        return { error: { name: 'RegistrationError', message: 'No user data returned' } as AuthError };
+      }
+
       console.log("User registered successfully:", data.user.id);
       
-      // Создаем профиль пользователя сразу после успешной регистрации
-      try {
-        console.log("Creating user profile for:", data.user.id);
-        
-        const profileResult = await createUserProfile(data.user.id, {
-          email,
-          role,
-          first_name: '',
-          last_name: ''
-        });
-        
-        if (profileResult.error) {
-          console.error("Failed to create profile:", profileResult.error);
-        } else {
-          console.log("Profile created successfully");
-        }
-        
-        // Автоматически входим в систему после регистрации
-        const signInResult = await supabase.auth.signInWithPassword({
-          email,
-          password
-        });
-        
-        if (signInResult.error) {
-          console.error("Auto sign-in failed:", signInResult.error);
-        } else {
-          console.log("Auto sign-in successful");
-        }
-      } catch (profileError) {
-        console.error('Error creating user profile:', profileError);
-      }
-    } else if (error) {
-      console.error("Registration error:", error);
-    }
+      // Создаем профиль пользователя
+      console.log("Creating user profile for:", data.user.id);
+      const profileData = {
+        email,
+        role,
+        first_name: '',
+        last_name: ''
+      };
 
-    return { error };
+      const profileResult = await createUserProfile(data.user.id, profileData);
+      
+      if (profileResult.error) {
+        console.error("Failed to create profile:", profileResult.error);
+      } else {
+        console.log("Profile created successfully");
+      }
+      
+      // Автоматически входим в систему после регистрации
+      console.log("Attempting auto sign-in...");
+      const signInResult = await supabase.auth.signInWithPassword({
+        email,
+        password
+      });
+      
+      if (signInResult.error) {
+        console.error("Auto sign-in failed:", signInResult.error);
+        return { error: signInResult.error };
+      } else {
+        console.log("Auto sign-in successful");
+      }
+      
+      return { error: null };
+    } catch (error) {
+      console.error("Unexpected error during registration:", error);
+      return { error: { name: 'UnexpectedError', message: 'Unexpected error during registration' } as AuthError };
+    }
   };
 
   const signIn = async (email: string, password: string) => {

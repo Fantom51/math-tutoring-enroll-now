@@ -40,15 +40,18 @@ export default function SignUpForm() {
     setIsLoading(true);
     
     try {
+      console.log("Отправка данных регистрации:", data);
       const { error } = await signUp(data.email, data.password, data.role as 'student' | 'teacher');
       
       if (error) {
+        console.error("Ошибка при регистрации:", error);
         toast({
           title: 'Ошибка при регистрации',
-          description: error.message,
+          description: error.message || 'Проверьте правильность введенных данных',
           variant: 'destructive',
         });
       } else {
+        console.log("Регистрация успешна, перенаправление на dashboard");
         toast({
           title: 'Успешная регистрация',
           description: 'Вы успешно зарегистрированы и вошли в систему',
@@ -56,7 +59,7 @@ export default function SignUpForm() {
         navigate('/dashboard');
       }
     } catch (error) {
-      console.error('Registration error:', error);
+      console.error('Непредвиденная ошибка при регистрации:', error);
       toast({
         title: 'Ошибка',
         description: 'Что-то пошло не так при регистрации',

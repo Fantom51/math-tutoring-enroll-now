@@ -15,6 +15,93 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   }
 });
 
+// Исправленная функция для создания профилей с корректными политиками
+const fixProfilesTable = async () => {
+  try {
+    console.log("Исправление таблицы profiles и политик доступа...");
+    
+    // Проверяем существование таблицы и если есть, пробуем исправить политики
+    const { data: existingTable, error: checkError } = await supabase
+      .from('profiles')
+      .select('id')
+      .limit(1)
+      .maybeSingle();
+    
+    if (checkError && checkError.code === '42P01') {
+      // Таблица не существует, создаем новую
+      await supabase.rpc('execute_sql', { 
+        sql: `
+          DROP TABLE IF EXISTS profiles CASCADE;
+          
+          CREATE TABLE profiles (
+            id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+            first_name TEXT,
+            last_name TEXT,
+            email TEXT NOT NULL,
+            phone TEXT,
+            role TEXT NOT NULL CHECK (role IN ('student', 'teacher')),
+            bio TEXT,
+            avatar_url TEXT,
+            created_at TIMESTAMPTZ DEFAULT now() NOT NULL,
+            updated_at TIMESTAMPTZ DEFAULT now() NOT NULL
+          );
+          
+          -- Включаем Row Level Security и сбрасываем все политики
+          ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
+          DROP POLICY IF EXISTS "Пользователи могут видеть все профили" ON profiles;
+          DROP POLICY IF EXISTS "Пользователи могут редактировать только свой профиль" ON profiles;
+          DROP POLICY IF EXISTS "Пользователи могут создавать только свой профиль" ON profiles;
+          
+          -- Создаем простые и работающие политики
+          CREATE POLICY "allow_read_all_profiles" 
+            ON profiles FOR SELECT 
+            USING (true);
+          
+          CREATE POLICY "allow_update_own_profile" 
+            ON profiles FOR UPDATE 
+            USING (auth.uid() = id);
+          
+          CREATE POLICY "allow_insert_own_profile" 
+            ON profiles FOR INSERT 
+            WITH CHECK (auth.uid() = id);
+        `
+      });
+      console.log("Таблица profiles создана с новыми политиками");
+    } else if (existingTable) {
+      // Таблица существует, исправляем политики
+      await supabase.rpc('execute_sql', { 
+        sql: `
+          -- Сбрасываем все существующие политики для таблицы profiles
+          DROP POLICY IF EXISTS "Пользователи могут видеть все профили" ON profiles;
+          DROP POLICY IF EXISTS "Пользователи могут редактировать только свой профиль" ON profiles;
+          DROP POLICY IF EXISTS "Пользователи могут создавать только свой профиль" ON profiles;
+          
+          -- Создаем новые, более простые политики
+          CREATE POLICY IF NOT EXISTS "allow_read_all_profiles" 
+            ON profiles FOR SELECT 
+            USING (true);
+          
+          CREATE POLICY IF NOT EXISTS "allow_update_own_profile" 
+            ON profiles FOR UPDATE 
+            USING (auth.uid() = id);
+          
+          CREATE POLICY IF NOT EXISTS "allow_insert_own_profile" 
+            ON profiles FOR INSERT 
+            WITH CHECK (auth.uid() = id);
+        `
+      });
+      console.log("Политики для таблицы profiles обновлены");
+    }
+  } catch (error) {
+    console.error("Ошибка при исправлении таблицы profiles:", error);
+  }
+};
+
+// Исправляем таблицу profiles при загрузке
+fixProfilesTable()
+  .then(() => console.log("Таблица profiles проверена и исправлена"))
+  .catch(err => console.error("Ошибка при исправлении таблицы profiles:", err));
+
 // Инициализация таблиц при подключении, если их нет
 export const initializeTables = async () => {
   try {
@@ -342,7 +429,7 @@ export const createSqlFunctions = async () => {
             id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
             first_name TEXT,
             last_name TEXT,
-            email TEXT UNIQUE NOT NULL,
+            email TEXT NOT NULL,
             phone TEXT,
             role TEXT NOT NULL CHECK (role IN ('student', 'teacher')),
             bio TEXT,
@@ -350,19 +437,25 @@ export const createSqlFunctions = async () => {
             created_at TIMESTAMPTZ DEFAULT now() NOT NULL,
             updated_at TIMESTAMPTZ DEFAULT now() NOT NULL
           );
-
-          -- Включаем Row Level Security
+          
+          -- Включаем Row Level Security и сбрасываем все политики
           ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
-
-          -- Создаем политику для доступа к собственному профилю
-          CREATE POLICY "Пользователи могут видеть все профили" 
-            ON profiles FOR SELECT USING (true);
+          DROP POLICY IF EXISTS "Пользователи могут видеть все профили" ON profiles;
+          DROP POLICY IF EXISTS "Пользователи могут редактировать только свой профиль" ON profiles;
+          DROP POLICY IF EXISTS "Пользователи могут создавать только свой профиль" ON profiles;
           
-          CREATE POLICY "Пользователи могут редактировать только свой профиль" 
-            ON profiles FOR UPDATE USING (auth.uid() = id);
+          -- Создаем простые и работающие политики
+          CREATE POLICY "allow_read_all_profiles" 
+            ON profiles FOR SELECT 
+            USING (true);
           
-          CREATE POLICY "Пользователи могут создавать только свой профиль" 
-            ON profiles FOR INSERT WITH CHECK (auth.uid() = id);
+          CREATE POLICY "allow_update_own_profile" 
+            ON profiles FOR UPDATE 
+            USING (auth.uid() = id);
+          
+          CREATE POLICY "allow_insert_own_profile" 
+            ON profiles FOR INSERT 
+            WITH CHECK (auth.uid() = id);
         END;
         $$ LANGUAGE plpgsql;
       `
@@ -399,7 +492,7 @@ export const createSqlFunctions = async () => {
             USING (auth.uid() = teacher_id AND 
                   EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'teacher'));
           
-          CREATE POLICY "Все могут просматривать свободные слоты учителей" 
+          CREATE POLICY "Все могут просматривать своб��дные слоты учителей" 
             ON teacher_availability FOR SELECT USING (true);
         END;
         $$ LANGUAGE plpgsql;
@@ -547,18 +640,23 @@ export const createSqlFunctions = async () => {
 
 // Экспортируем основные функции для работы с пользователями
 export const getUserProfile = async (userId: string) => {
-  const { data, error } = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('id', userId)
-    .single();
-  
-  if (error) {
-    console.error('Error fetching user profile:', error);
+  try {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', userId)
+      .single();
+    
+    if (error) {
+      console.error('Error fetching user profile:', error);
+      return null;
+    }
+    
+    return data;
+  } catch (error) {
+    console.error('Error in getUserProfile:', error);
     return null;
   }
-  
-  return data;
 };
 
 export const updateUserProfile = async (userId: string, profileData: any) => {
@@ -576,14 +674,22 @@ export const updateUserProfile = async (userId: string, profileData: any) => {
 };
 
 export const createUserProfile = async (userId: string, profileData: any) => {
-  const { data, error } = await supabase
-    .from('profiles')
-    .insert([{ id: userId, ...profileData }]);
-  
-  if (error) {
-    console.error('Error creating user profile:', error);
-    return { data: null, error };
+  try {
+    console.log(`Creating profile for user ${userId} with data:`, profileData);
+    
+    const { data, error } = await supabase
+      .from('profiles')
+      .insert([{ id: userId, ...profileData }]);
+    
+    if (error) {
+      console.error('Error creating user profile:', error);
+      return { data: null, error };
+    }
+    
+    console.log('Profile created successfully:', data);
+    return { data, error: null };
+  } catch (error) {
+    console.error('Unexpected error in createUserProfile:', error);
+    return { data: null, error: { message: 'Unexpected error creating profile' } };
   }
-  
-  return { data, error: null };
 };
