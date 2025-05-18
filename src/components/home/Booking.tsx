@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -55,12 +54,18 @@ const Booking = () => {
   const [showSuccess, setShowSuccess] = useState(false);
   const [availableDates, setAvailableDates] = useState<Date[]>([]);
   const [bookedSlots, setBookedSlots] = useState<{[key: string]: string[]}>({});
+  const [availableTimeSlots, setAvailableTimeSlots] = useState<string[]>([]);
 
   // Fetch available dates and time slots from teacher's availability
   useEffect(() => {
     fetchTeacherAvailability();
     fetchBookedSlots();
   }, []);
+  
+  // Update available time slots whenever date changes
+  useEffect(() => {
+    updateAvailableTimeSlots();
+  }, [date, bookedSlots]);
 
   const fetchTeacherAvailability = async () => {
     try {
@@ -237,31 +242,39 @@ const Booking = () => {
     }
   };
 
-  const getAvailableTimeSlots = () => {
-    if (!date) return [];
+  const updateAvailableTimeSlots = () => {
+    if (!date) {
+      setAvailableTimeSlots([]);
+      return;
+    }
 
     const dateString = format(date, "yyyy-MM-dd");
-    
-    // Get available time slots for this date from the database
-    const { data } = supabase
-      .from('teacher_availability')
-      .select('time_slot')
-      .eq('date', dateString)
-      .then(({ data }) => {
-        if (data && data.length > 0) {
-          return data.map(item => item.time_slot);
-        }
-        return DEFAULT_TIME_SLOTS;
-      });
     
     // Get booked slots for this date
     const booked = bookedSlots[dateString] || [];
 
-    // Filter out booked slots
-    return DEFAULT_TIME_SLOTS.filter(slot => !booked.includes(slot));
+    // For now, just use the default time slots and filter out booked ones
+    // In a real implementation, we would fetch the available slots from the database
+    const slots = DEFAULT_TIME_SLOTS.filter(slot => !booked.includes(slot));
+    setAvailableTimeSlots(slots);
+    
+    // Also try to fetch from database if available
+    supabase
+      .from('teacher_availability')
+      .select('time_slot')
+      .eq('date', dateString)
+      .then(response => {
+        if (response.data && response.data.length > 0) {
+          const dbSlots = response.data.map(item => item.time_slot);
+          // Filter out booked slots
+          const availableSlots = dbSlots.filter(slot => !booked.includes(slot));
+          setAvailableTimeSlots(availableSlots);
+        }
+      })
+      .catch(error => {
+        console.error('Error fetching available time slots:', error);
+      });
   };
-
-  const availableTimeSlots = getAvailableTimeSlots();
 
   return (
     <section id="booking" className="py-20 bg-white relative overflow-hidden">
