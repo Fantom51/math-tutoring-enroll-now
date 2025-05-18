@@ -69,6 +69,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       // Настройка слушателя для изменений в авторизации
       const { data: { subscription } } = await supabase.auth.onAuthStateChange(async (_event, session) => {
+        console.log("Auth state changed:", _event, session?.user?.id);
         setSession(session);
         setUser(session?.user ?? null);
         
@@ -88,36 +89,53 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const signUp = async (email: string, password: string, role: 'student' | 'teacher') => {
+    console.log("Starting registration for:", email, "with role:", role);
+    
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
         data: { role },
-        emailRedirectTo: window.location.origin + '/login',
-        // Отключаем подтверждение по электронной почте
-        emailConfirm: false
+        emailRedirectTo: window.location.origin + '/login'
       }
     });
 
     if (!error && data.user) {
-      // Автоматически подтверждаем пользователя
+      console.log("User registered successfully:", data.user.id);
+      
+      // Создаем профиль пользователя сразу после успешной регистрации
       try {
-        // Создаем профиль пользователя сразу после успешной регистрации
-        await createUserProfile(data.user.id, {
+        console.log("Creating user profile for:", data.user.id);
+        
+        const profileResult = await createUserProfile(data.user.id, {
           email,
           role,
           first_name: '',
           last_name: ''
         });
         
+        if (profileResult.error) {
+          console.error("Failed to create profile:", profileResult.error);
+        } else {
+          console.log("Profile created successfully");
+        }
+        
         // Автоматически входим в систему после регистрации
-        await supabase.auth.signInWithPassword({
+        const signInResult = await supabase.auth.signInWithPassword({
           email,
           password
         });
+        
+        if (signInResult.error) {
+          console.error("Auto sign-in failed:", signInResult.error);
+        } else {
+          console.log("Auto sign-in successful");
+        }
       } catch (profileError) {
         console.error('Error creating user profile:', profileError);
       }
+    } else if (error) {
+      console.error("Registration error:", error);
     }
 
     return { error };

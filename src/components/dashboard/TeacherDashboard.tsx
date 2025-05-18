@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
@@ -21,7 +22,9 @@ import TeacherAvailability from './TeacherAvailability';
 interface Student {
   id: string;
   email: string;
-  full_name: string | null;
+  full_name?: string | null;
+  first_name?: string;
+  last_name?: string;
 }
 
 interface Homework {
@@ -33,13 +36,14 @@ interface Homework {
 }
 
 export default function TeacherDashboard() {
-  const { user } = useAuth();
+  const { user, userProfile } = useAuth();
   const { toast } = useToast();
   const [students, setStudents] = useState<Student[]>([]);
   const [homeworks, setHomeworks] = useState<Homework[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [activeTab, setActiveTab] = useState<'students' | 'homeworks' | 'availability'>('students');
+  const [dialogOpen, setDialogOpen] = useState(false);
   
   const [newHomework, setNewHomework] = useState({
     title: '',
@@ -48,22 +52,32 @@ export default function TeacherDashboard() {
   });
   
   useEffect(() => {
-    fetchStudents();
-    fetchHomeworks();
-  }, [user]);
+    if (user) {
+      console.log("TeacherDashboard: User loaded, fetching data", user.id);
+      console.log("User profile:", userProfile);
+      fetchStudents();
+      fetchHomeworks();
+    }
+  }, [user, userProfile]);
 
   const fetchStudents = async () => {
     try {
       if (!user) return;
       
+      console.log("Fetching students...");
+      
       // Получаем пользователей с ролью "студент"
       const { data, error } = await supabase
         .from('profiles')
-        .select('id, email, full_name')
+        .select('id, email, first_name, last_name')
         .eq('role', 'student');
 
-      if (error) throw error;
+      if (error) {
+        console.error("Error fetching students:", error);
+        throw error;
+      }
       
+      console.log("Students fetched:", data);
       setStudents(data || []);
     } catch (error) {
       console.error('Ошибка при загрузке списка студентов:', error);
@@ -79,6 +93,8 @@ export default function TeacherDashboard() {
     try {
       if (!user) return;
       
+      console.log("Fetching homeworks for teacher:", user.id);
+      
       // Получаем все домашние задания, созданные текущим преподавателем
       const { data, error } = await supabase
         .from('homeworks')
@@ -86,8 +102,12 @@ export default function TeacherDashboard() {
         .eq('teacher_id', user.id)
         .order('created_at', { ascending: false });
 
-      if (error) throw error;
+      if (error) {
+        console.error("Error fetching homeworks:", error);
+        throw error;
+      }
       
+      console.log("Homeworks fetched:", data);
       setHomeworks(data || []);
     } catch (error) {
       console.error('Ошибка при загрузке домашних заданий:', error);
@@ -117,22 +137,43 @@ export default function TeacherDashboard() {
         return;
       }
 
+      console.log("Creating homework with user:", user.id);
+      console.log("File:", newHomework.file);
+
       setUploading(true);
 
-      // 1. Загрузка файла в Storage
+      // 1. Создаем хранилище, если его нет
+      const { data: buckets } = await supabase.storage.listBuckets();
+      const homeworkBucket = buckets?.find(bucket => bucket.name === 'homework_files');
+      
+      if (!homeworkBucket) {
+        console.log("Creating homework_files bucket...");
+        await supabase.storage.createBucket('homework_files', {
+          public: false,
+          fileSizeLimit: 10485760 // 10MB
+        });
+      }
+
+      // 2. Загрузка файла в Storage
       const fileExt = newHomework.file.name.split('.').pop();
       const fileName = `${Math.random().toString(36).substring(2)}-${Date.now()}.${fileExt}`;
       const filePath = `homeworks/${user.id}/${fileName}`;
 
+      console.log("Uploading file to path:", filePath);
       const { error: uploadError, data } = await supabase.storage
         .from('homework_files')
         .upload(filePath, newHomework.file);
 
-      if (uploadError) throw uploadError;
+      if (uploadError) {
+        console.error("File upload error:", uploadError);
+        throw uploadError;
+      }
 
-      const fileUrl = data?.path ?? '';
+      console.log("File uploaded successfully:", data);
+      const fileUrl = filePath;
 
-      // 2. Создание записи о домашнем задании
+      // 3. Создание записи о домашнем задании
+      console.log("Creating homework record...");
       const { error, data: homeworkData } = await supabase
         .from('homeworks')
         .insert([
@@ -145,33 +186,46 @@ export default function TeacherDashboard() {
         ])
         .select();
 
-      if (error) throw error;
+      if (error) {
+        console.error("Homework record creation error:", error);
+        throw error;
+      }
 
-      // 3. Назначаем это задание всем студентам
+      console.log("Homework created successfully:", homeworkData);
+
+      // 4. Назначаем это задание всем студентам
       if (homeworkData && homeworkData.length > 0) {
         const homeworkId = homeworkData[0].id;
         
         const studentAssignments = students.map(student => ({
           student_id: student.id,
-          homework_id: homeworkId
+          homework_id: homeworkId,
+          status: 'not_started'
         }));
         
         if (studentAssignments.length > 0) {
+          console.log("Assigning homework to students:", studentAssignments);
           const { error: assignError } = await supabase
             .from('student_homeworks')
             .insert(studentAssignments);
           
-          if (assignError) throw assignError;
+          if (assignError) {
+            console.error("Error assigning homework to students:", assignError);
+            throw assignError;
+          }
+          
+          console.log("Homework assigned to students successfully");
         }
       }
 
-      // Очищаем форму и обновляем список
+      // 5. Очищаем форму и обновляем список
       setNewHomework({
         title: '',
         description: '',
         file: null
       });
       
+      setDialogOpen(false);
       await fetchHomeworks();
 
       toast({
@@ -183,7 +237,7 @@ export default function TeacherDashboard() {
       console.error('Ошибка при создании домашнего задания:', error);
       toast({
         title: 'Ошибка',
-        description: 'Не удалось создать домашнее задание',
+        description: 'Не удалось создать домашнее задание: ' + (error instanceof Error ? error.message : String(error)),
         variant: 'destructive'
       });
     } finally {
@@ -287,7 +341,11 @@ export default function TeacherDashboard() {
                       className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50"
                     >
                       <div>
-                        <p className="font-medium">{student.full_name || 'Имя не указано'}</p>
+                        <p className="font-medium">
+                          {student.first_name || student.last_name 
+                            ? `${student.first_name || ''} ${student.last_name || ''}`.trim()
+                            : 'Имя не указано'}
+                        </p>
                         <p className="text-sm text-gray-600">{student.email}</p>
                       </div>
                       <UserCheck className="text-green-500 w-5 h-5" />
@@ -303,7 +361,7 @@ export default function TeacherDashboard() {
       {activeTab === 'homeworks' && (
         <>
           <div className="flex justify-end">
-            <Dialog>
+            <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
               <DialogTrigger asChild>
                 <Button className="flex items-center gap-2">
                   <Plus className="w-4 h-4" />

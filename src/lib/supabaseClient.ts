@@ -1,4 +1,3 @@
-
 import { createClient } from '@supabase/supabase-js';
 
 // Прямое указание credentials (только для разработки!)
@@ -19,6 +18,24 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
 // Инициализация таблиц при подключении, если их нет
 export const initializeTables = async () => {
   try {
+    console.log("Starting table initialization check...");
+    
+    // Создаем общую функцию для выполнения произвольного SQL, если она еще не существует
+    try {
+      await supabase.rpc('execute_sql', { 
+        sql: `
+          CREATE OR REPLACE FUNCTION execute_sql(sql text) RETURNS void AS $$
+          BEGIN
+            EXECUTE sql;
+          END;
+          $$ LANGUAGE plpgsql SECURITY DEFINER;
+        `
+      });
+      console.log("SQL execute function created successfully");
+    } catch (error) {
+      console.log("SQL execute function might already exist, continuing:", error);
+    }
+    
     // Проверяем наличие таблицы profiles
     const { error: profilesError } = await supabase
       .from('profiles')
@@ -30,9 +47,122 @@ export const initializeTables = async () => {
       const { error } = await supabase.rpc('create_profiles_table');
       if (error) {
         console.error('Ошибка при создании таблицы profiles:', error);
+        
+        // Попробуем создать SQL функцию и затем создать таблицу
+        await createSqlFunctions();
+        const retryResult = await supabase.rpc('create_profiles_table');
+        if (retryResult.error) {
+          console.error('Повторная попытка создания таблицы profiles не удалась:', retryResult.error);
+        } else {
+          console.log('Таблица profiles успешно создана при повторной попытке!');
+        }
       } else {
         console.log('Таблица profiles успешно создана!');
       }
+    } else {
+      console.log('Таблица profiles уже существует');
+    }
+
+    // Проверяем наличие таблицы homeworks
+    const { error: homeworksError } = await supabase
+      .from('homeworks')
+      .select('count')
+      .limit(1);
+    
+    if (homeworksError && homeworksError.code === '42P01') {
+      console.log('Создаем таблицу homeworks...');
+      const { error } = await supabase.rpc('create_homeworks_table');
+      if (error) {
+        console.error('Ошибка при создании таблицы homeworks:', error);
+        
+        // Создадим SQL функцию для таблицы homeworks если не существует
+        await supabase.rpc('execute_sql', { 
+          sql: `
+            CREATE OR REPLACE FUNCTION create_homeworks_table() RETURNS void AS $$
+            BEGIN
+              CREATE TABLE IF NOT EXISTS homeworks (
+                id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+                title TEXT NOT NULL,
+                description TEXT,
+                file_url TEXT,
+                teacher_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+                created_at TIMESTAMPTZ DEFAULT now() NOT NULL,
+                updated_at TIMESTAMPTZ DEFAULT now() NOT NULL
+              );
+
+              CREATE TABLE IF NOT EXISTS student_homeworks (
+                id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+                student_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+                homework_id UUID NOT NULL REFERENCES homeworks(id) ON DELETE CASCADE,
+                status TEXT DEFAULT 'not_started' CHECK (status IN ('not_started', 'in_progress', 'completed')),
+                submission_url TEXT,
+                submission_date TIMESTAMPTZ,
+                grade NUMERIC,
+                feedback TEXT,
+                created_at TIMESTAMPTZ DEFAULT now() NOT NULL,
+                updated_at TIMESTAMPTZ DEFAULT now() NOT NULL,
+                UNIQUE(student_id, homework_id)
+              );
+
+              -- Политики для таблицы homeworks
+              CREATE POLICY "Учителя могут создавать домашние задания" 
+                ON homeworks FOR INSERT 
+                WITH CHECK (auth.uid() = teacher_id AND 
+                          EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'teacher'));
+              
+              CREATE POLICY "Учителя могут редактировать свои домашние задания" 
+                ON homeworks FOR UPDATE 
+                USING (auth.uid() = teacher_id AND 
+                      EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'teacher'));
+              
+              CREATE POLICY "Учителя могут видеть свои домашние задания" 
+                ON homeworks FOR SELECT 
+                USING (auth.uid() = teacher_id AND 
+                      EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'teacher'));
+              
+              -- Политики для таблицы student_homeworks
+              CREATE POLICY "Учителя могут назначать задания студентам" 
+                ON student_homeworks FOR INSERT 
+                WITH CHECK (EXISTS (
+                  SELECT 1 FROM homeworks 
+                  WHERE id = homework_id AND teacher_id = auth.uid() AND
+                  EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'teacher')
+                ));
+              
+              CREATE POLICY "Учителя могут видеть назначенные задания" 
+                ON student_homeworks FOR SELECT 
+                USING (EXISTS (
+                  SELECT 1 FROM homeworks 
+                  WHERE id = homework_id AND teacher_id = auth.uid() AND
+                  EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'teacher')
+                ));
+              
+              CREATE POLICY "Студенты могут видеть свои задания" 
+                ON student_homeworks FOR SELECT 
+                USING (auth.uid() = student_id AND 
+                      EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'student'));
+              
+              CREATE POLICY "Студенты могут обновлять свои задания" 
+                ON student_homeworks FOR UPDATE 
+                USING (auth.uid() = student_id AND 
+                      EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'student'));
+            END;
+            $$ LANGUAGE plpgsql;
+          `
+        });
+        
+        // Пробуем создать таблицу еще раз
+        const retryResult = await supabase.rpc('create_homeworks_table');
+        if (retryResult.error) {
+          console.error('Повторная попытка создания таблицы homeworks не удалась:', retryResult.error);
+        } else {
+          console.log('Таблицы homeworks и student_homeworks успешно созданы при повторной попытке!');
+        }
+      } else {
+        console.log('Таблицы homeworks и student_homeworks успешно созданы!');
+      }
+    } else {
+      console.log('Таблица homeworks уже существует');
     }
 
     // Проверяем наличие таблицы teacher_availability
@@ -46,9 +176,57 @@ export const initializeTables = async () => {
       const { error } = await supabase.rpc('create_teacher_availability_table');
       if (error) {
         console.error('Ошибка при создании таблицы teacher_availability:', error);
+        
+        // Создаем SQL-функцию для создания таблицы teacher_availability
+        await supabase.rpc('execute_sql', { 
+          sql: `
+            CREATE OR REPLACE FUNCTION create_teacher_availability_table() RETURNS void AS $$
+            BEGIN
+              CREATE TABLE IF NOT EXISTS teacher_availability (
+                id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+                teacher_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+                date DATE NOT NULL,
+                time_from TIME NOT NULL,
+                time_to TIME NOT NULL,
+                created_at TIMESTAMPTZ DEFAULT now() NOT NULL,
+                UNIQUE(teacher_id, date, time_from, time_to)
+              );
+
+              -- Создаем политики для таблицы teacher_availability
+              CREATE POLICY "Учителя могут добавлять свои свободные слоты" 
+                ON teacher_availability FOR INSERT 
+                WITH CHECK (auth.uid() = teacher_id AND 
+                          EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'teacher'));
+              
+              CREATE POLICY "Учителя могут изменять свои свободные слоты" 
+                ON teacher_availability FOR UPDATE 
+                USING (auth.uid() = teacher_id AND 
+                      EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'teacher'));
+              
+              CREATE POLICY "Учителя могут удалять свои свободные слоты" 
+                ON teacher_availability FOR DELETE 
+                USING (auth.uid() = teacher_id AND 
+                      EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'teacher'));
+              
+              CREATE POLICY "Все могут просматривать свободные слоты учителей" 
+                ON teacher_availability FOR SELECT USING (true);
+            END;
+            $$ LANGUAGE plpgsql;
+          `
+        });
+        
+        // Пробуем создать таблицу еще раз
+        const retryResult = await supabase.rpc('create_teacher_availability_table');
+        if (retryResult.error) {
+          console.error('Повторная попытка создания таблицы teacher_availability не удалась:', retryResult.error);
+        } else {
+          console.log('Таблица teacher_availability успешно создана при повторной попытке!');
+        }
       } else {
         console.log('Таблица teacher_availability успешно создана!');
       }
+    } else {
+      console.log('Таблица teacher_availability уже существует');
     }
 
     // Проверяем наличие таблицы bookings
@@ -62,9 +240,67 @@ export const initializeTables = async () => {
       const { error } = await supabase.rpc('create_bookings_table');
       if (error) {
         console.error('Ошибка при создании таблицы bookings:', error);
+        
+        // Создаем SQL-функцию для создания таблицы bookings
+        await supabase.rpc('execute_sql', { 
+          sql: `
+            CREATE OR REPLACE FUNCTION create_bookings_table() RETURNS void AS $$
+            BEGIN
+              CREATE TABLE IF NOT EXISTS bookings (
+                id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+                teacher_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+                student_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+                date DATE NOT NULL,
+                time_from TIME NOT NULL,
+                time_to TIME NOT NULL,
+                status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'confirmed', 'cancelled')),
+                subject TEXT,
+                comments TEXT,
+                created_at TIMESTAMPTZ DEFAULT now() NOT NULL,
+                updated_at TIMESTAMPTZ DEFAULT now() NOT NULL,
+                UNIQUE(teacher_id, date, time_from, time_to)
+              );
+
+              -- Создаем политики для таблицы bookings
+              CREATE POLICY "Студенты могут создавать бронирования" 
+                ON bookings FOR INSERT 
+                WITH CHECK (auth.uid() = student_id AND 
+                          EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'student'));
+              
+              CREATE POLICY "Студенты могут видеть свои бронирования" 
+                ON bookings FOR SELECT 
+                USING (auth.uid() = student_id);
+              
+              CREATE POLICY "Учителя могут видеть бронирования на свое время" 
+                ON bookings FOR SELECT 
+                USING (auth.uid() = teacher_id AND 
+                      EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'teacher'));
+              
+              CREATE POLICY "Студенты могут отменять свои бронирования" 
+                ON bookings FOR UPDATE 
+                USING (auth.uid() = student_id AND status != 'cancelled');
+              
+              CREATE POLICY "Учителя могут подтверждать или отменять бронирования" 
+                ON bookings FOR UPDATE 
+                USING (auth.uid() = teacher_id AND 
+                      EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'teacher'));
+            END;
+            $$ LANGUAGE plpgsql;
+          `
+        });
+        
+        // Пробуем создать таблицу еще раз
+        const retryResult = await supabase.rpc('create_bookings_table');
+        if (retryResult.error) {
+          console.error('Повторная попытка создания таблицы bookings не удалась:', retryResult.error);
+        } else {
+          console.log('Таблица bookings успешно создана при повторной попытке!');
+        }
       } else {
         console.log('Таблица bookings успешно создана!');
       }
+    } else {
+      console.log('Таблица bookings уже существует');
     }
 
     console.log('Проверка таблиц завершена');
@@ -92,9 +328,11 @@ supabase
     }
   });
 
-// Функции для создания SQL-функций в Supabase для инициализации таблиц
+// Создание SQL-функций для инициализации таблиц в Supabase
 export const createSqlFunctions = async () => {
   try {
+    console.log("Creating SQL functions...");
+    
     // Создаем SQL-функцию для создания таблицы profiles
     await supabase.rpc('execute_sql', { 
       sql: `
@@ -113,6 +351,9 @@ export const createSqlFunctions = async () => {
             updated_at TIMESTAMPTZ DEFAULT now() NOT NULL
           );
 
+          -- Включаем Row Level Security
+          ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
+
           -- Создаем политику для доступа к собственному профилю
           CREATE POLICY "Пользователи могут видеть все профили" 
             ON profiles FOR SELECT USING (true);
@@ -127,7 +368,7 @@ export const createSqlFunctions = async () => {
       `
     });
 
-    // Создаем SQL-функцию для создания таблицы teacher_availability
+    // Создаем остальные функции
     await supabase.rpc('execute_sql', { 
       sql: `
         CREATE OR REPLACE FUNCTION create_teacher_availability_table() RETURNS void AS $$
@@ -146,7 +387,7 @@ export const createSqlFunctions = async () => {
           CREATE POLICY "Учителя могут добавлять свои свободные слоты" 
             ON teacher_availability FOR INSERT 
             WITH CHECK (auth.uid() = teacher_id AND 
-                       EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'teacher'));
+                      EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'teacher'));
           
           CREATE POLICY "Учителя могут изменять свои свободные слоты" 
             ON teacher_availability FOR UPDATE 
@@ -165,7 +406,6 @@ export const createSqlFunctions = async () => {
       `
     });
 
-    // Создаем SQL-функцию для создания таблицы bookings
     await supabase.rpc('execute_sql', { 
       sql: `
         CREATE OR REPLACE FUNCTION create_bookings_table() RETURNS void AS $$
@@ -189,7 +429,7 @@ export const createSqlFunctions = async () => {
           CREATE POLICY "Студенты могут создавать бронирования" 
             ON bookings FOR INSERT 
             WITH CHECK (auth.uid() = student_id AND 
-                       EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'student'));
+                      EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'student'));
           
           CREATE POLICY "Студенты могут видеть свои бронирования" 
             ON bookings FOR SELECT 
@@ -208,6 +448,81 @@ export const createSqlFunctions = async () => {
             ON bookings FOR UPDATE 
             USING (auth.uid() = teacher_id AND 
                   EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'teacher'));
+        END;
+        $$ LANGUAGE plpgsql;
+      `
+    });
+
+    await supabase.rpc('execute_sql', { 
+      sql: `
+        CREATE OR REPLACE FUNCTION create_homeworks_table() RETURNS void AS $$
+        BEGIN
+          CREATE TABLE IF NOT EXISTS homeworks (
+            id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+            title TEXT NOT NULL,
+            description TEXT,
+            file_url TEXT,
+            teacher_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+            created_at TIMESTAMPTZ DEFAULT now() NOT NULL,
+            updated_at TIMESTAMPTZ DEFAULT now() NOT NULL
+          );
+
+          CREATE TABLE IF NOT EXISTS student_homeworks (
+            id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+            student_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+            homework_id UUID NOT NULL REFERENCES homeworks(id) ON DELETE CASCADE,
+            status TEXT DEFAULT 'not_started' CHECK (status IN ('not_started', 'in_progress', 'completed')),
+            submission_url TEXT,
+            submission_date TIMESTAMPTZ,
+            grade NUMERIC,
+            feedback TEXT,
+            created_at TIMESTAMPTZ DEFAULT now() NOT NULL,
+            updated_at TIMESTAMPTZ DEFAULT now() NOT NULL,
+            UNIQUE(student_id, homework_id)
+          );
+
+          -- Политики для таблицы homeworks
+          CREATE POLICY "Учителя могут создавать домашние задания" 
+            ON homeworks FOR INSERT 
+            WITH CHECK (auth.uid() = teacher_id AND 
+                      EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'teacher'));
+          
+          CREATE POLICY "Учителя могут редактировать свои домашние задания" 
+            ON homeworks FOR UPDATE 
+            USING (auth.uid() = teacher_id AND 
+                      EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'teacher'));
+          
+          CREATE POLICY "Учителя могут видеть свои домашние задания" 
+            ON homeworks FOR SELECT 
+            USING (auth.uid() = teacher_id AND 
+                      EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'teacher'));
+          
+          -- Политики для таблицы student_homeworks
+          CREATE POLICY "Учителя могут назначать задания студентам" 
+            ON student_homeworks FOR INSERT 
+            WITH CHECK (EXISTS (
+              SELECT 1 FROM homeworks 
+              WHERE id = homework_id AND teacher_id = auth.uid() AND
+              EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'teacher')
+            ));
+          
+          CREATE POLICY "Учителя могут видеть назначенные задания" 
+            ON student_homeworks FOR SELECT 
+            USING (EXISTS (
+              SELECT 1 FROM homeworks 
+              WHERE id = homework_id AND teacher_id = auth.uid() AND
+              EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'teacher')
+            ));
+          
+          CREATE POLICY "Студенты могут видеть свои задания" 
+            ON student_homeworks FOR SELECT 
+            USING (auth.uid() = student_id AND 
+                  EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'student'));
+          
+          CREATE POLICY "Студенты могут обновлять свои задания" 
+            ON student_homeworks FOR UPDATE 
+            USING (auth.uid() = student_id AND 
+                  EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'student'));
         END;
         $$ LANGUAGE plpgsql;
       `
