@@ -51,9 +51,9 @@ export default function SignUpForm() {
       } else {
         toast({
           title: 'Успешная регистрация',
-          description: 'Проверьте вашу почту для подтверждения регистрации',
+          description: 'Вы успешно зарегистрированы и вошли в систему',
         });
-        navigate('/login');
+        navigate('/dashboard');
       }
     } catch (error) {
       console.error('Registration error:', error);

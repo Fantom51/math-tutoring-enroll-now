@@ -271,7 +271,7 @@ const Booking = () => {
           setAvailableTimeSlots(availableSlots);
         }
       })
-      .catch(error => {
+      .then(undefined, (error) => {
         console.error('Error fetching available time slots:', error);
       });
   };

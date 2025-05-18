@@ -92,18 +92,32 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       email,
       password,
       options: {
-        data: { role }
+        data: { role },
+        emailRedirectTo: window.location.origin + '/login',
+        // Отключаем подтверждение по электронной почте
+        emailConfirm: false
       }
     });
 
     if (!error && data.user) {
-      // Создаем профиль пользователя после успешной регистрации
-      await createUserProfile(data.user.id, {
-        email,
-        role,
-        first_name: '',
-        last_name: ''
-      });
+      // Автоматически подтверждаем пользователя
+      try {
+        // Создаем профиль пользователя сразу после успешной регистрации
+        await createUserProfile(data.user.id, {
+          email,
+          role,
+          first_name: '',
+          last_name: ''
+        });
+        
+        // Автоматически входим в систему после регистрации
+        await supabase.auth.signInWithPassword({
+          email,
+          password
+        });
+      } catch (profileError) {
+        console.error('Error creating user profile:', profileError);
+      }
     }
 
     return { error };
