@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
@@ -142,16 +141,32 @@ export default function TeacherDashboard() {
 
       setUploading(true);
 
-      // 1. Создаем хранилище, если его нет
-      const { data: buckets } = await supabase.storage.listBuckets();
+      // 1. Проверяем наличие хранилища
+      console.log("Checking if homework_files bucket exists...");
+      const { data: buckets, error: bucketsError } = await supabase.storage.listBuckets();
+      
+      if (bucketsError) {
+        console.error("Error listing buckets:", bucketsError);
+        throw bucketsError;
+      }
+      
       const homeworkBucket = buckets?.find(bucket => bucket.name === 'homework_files');
       
       if (!homeworkBucket) {
         console.log("Creating homework_files bucket...");
-        await supabase.storage.createBucket('homework_files', {
+        const { error: createBucketError } = await supabase.storage.createBucket('homework_files', {
           public: false,
           fileSizeLimit: 10485760 // 10MB
         });
+        
+        if (createBucketError) {
+          console.error("Error creating bucket:", createBucketError);
+          throw createBucketError;
+        }
+        
+        console.log("Bucket created successfully");
+      } else {
+        console.log("Bucket already exists");
       }
 
       // 2. Загрузка файла в Storage
@@ -160,7 +175,7 @@ export default function TeacherDashboard() {
       const filePath = `homeworks/${user.id}/${fileName}`;
 
       console.log("Uploading file to path:", filePath);
-      const { error: uploadError, data } = await supabase.storage
+      const { error: uploadError, data: uploadData } = await supabase.storage
         .from('homework_files')
         .upload(filePath, newHomework.file);
 
@@ -169,26 +184,25 @@ export default function TeacherDashboard() {
         throw uploadError;
       }
 
-      console.log("File uploaded successfully:", data);
-      const fileUrl = filePath;
-
+      console.log("File uploaded successfully:", uploadData);
+      
       // 3. Создание записи о домашнем задании
       console.log("Creating homework record...");
-      const { error, data: homeworkData } = await supabase
+      const { error: homeworkError, data: homeworkData } = await supabase
         .from('homeworks')
         .insert([
           {
             title: newHomework.title,
             description: newHomework.description,
-            file_url: fileUrl,
+            file_url: filePath,
             teacher_id: user.id
           }
         ])
         .select();
 
-      if (error) {
-        console.error("Homework record creation error:", error);
-        throw error;
+      if (homeworkError) {
+        console.error("Homework record creation error:", homeworkError);
+        throw homeworkError;
       }
 
       console.log("Homework created successfully:", homeworkData);
@@ -197,13 +211,15 @@ export default function TeacherDashboard() {
       if (homeworkData && homeworkData.length > 0) {
         const homeworkId = homeworkData[0].id;
         
-        const studentAssignments = students.map(student => ({
-          student_id: student.id,
-          homework_id: homeworkId,
-          status: 'not_started'
-        }));
-        
-        if (studentAssignments.length > 0) {
+        if (students.length === 0) {
+          console.log("No students to assign homework to");
+        } else {
+          const studentAssignments = students.map(student => ({
+            student_id: student.id,
+            homework_id: homeworkId,
+            status: 'not_started'
+          }));
+          
           console.log("Assigning homework to students:", studentAssignments);
           const { error: assignError } = await supabase
             .from('student_homeworks')
@@ -235,9 +251,28 @@ export default function TeacherDashboard() {
 
     } catch (error) {
       console.error('Ошибка при создании домашнего задания:', error);
+      let errorMessage = 'Не удалось создать домашнее задание';
+      
+      if (error instanceof Error) {
+        console.error('Detailed error:', error.message);
+        errorMessage += `: ${error.message}`;
+      } else if (typeof error === 'object' && error !== null) {
+        // Для случаев, когда supabase возвращает объект ошибки
+        const supabaseError = error as any;
+        if (supabaseError.message) {
+          errorMessage += `: ${supabaseError.message}`;
+        }
+        if (supabaseError.code) {
+          errorMessage += ` (код ${supabaseError.code})`;
+        }
+        if (supabaseError.details) {
+          console.error('Error details:', supabaseError.details);
+        }
+      }
+      
       toast({
         title: 'Ошибка',
-        description: 'Не удалось создать домашнее задание: ' + (error instanceof Error ? error.message : String(error)),
+        description: errorMessage,
         variant: 'destructive'
       });
     } finally {
