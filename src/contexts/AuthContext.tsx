@@ -1,15 +1,30 @@
 
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { User, Session, AuthError } from '@supabase/supabase-js';
-import { supabase } from '@/lib/supabaseClient';
+import { supabase, getUserProfile, createUserProfile } from '@/lib/supabaseClient';
+
+interface UserProfile {
+  id: string;
+  first_name?: string;
+  last_name?: string;
+  email: string;
+  phone?: string;
+  role: 'student' | 'teacher';
+  bio?: string;
+  avatar_url?: string;
+  created_at: string;
+  updated_at: string;
+}
 
 type AuthContextType = {
   user: User | null;
   session: Session | null;
   loading: boolean;
+  userProfile: UserProfile | null;
   signIn: (email: string, password: string) => Promise<{ error: AuthError | null }>;
   signUp: (email: string, password: string, role: 'student' | 'teacher') => Promise<{ error: AuthError | null }>;
   signOut: () => Promise<void>;
+  refreshProfile: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -18,6 +33,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+
+  // Загрузка профиля пользователя
+  const loadUserProfile = async (userId: string) => {
+    try {
+      const profile = await getUserProfile(userId);
+      setUserProfile(profile);
+    } catch (error) {
+      console.error('Error loading user profile:', error);
+    }
+  };
+
+  // Обновление профиля пользователя
+  const refreshProfile = async () => {
+    if (user) {
+      await loadUserProfile(user.id);
+    }
+  };
 
   useEffect(() => {
     // Получение текущей сессии и установка слушателя изменений авторизации
@@ -27,12 +60,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       setSession(session);
       setUser(session?.user ?? null);
+      
+      if (session?.user) {
+        await loadUserProfile(session.user.id);
+      }
+      
       setLoading(false);
 
       // Настройка слушателя для изменений в авторизации
-      const { data: { subscription } } = await supabase.auth.onAuthStateChange((_event, session) => {
+      const { data: { subscription } } = await supabase.auth.onAuthStateChange(async (_event, session) => {
         setSession(session);
         setUser(session?.user ?? null);
+        
+        if (session?.user) {
+          await loadUserProfile(session.user.id);
+        } else {
+          setUserProfile(null);
+        }
+        
         setLoading(false);
       });
 
@@ -43,13 +88,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const signUp = async (email: string, password: string, role: 'student' | 'teacher') => {
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
         data: { role }
       }
     });
+
+    if (!error && data.user) {
+      // Создаем профиль пользователя после успешной регистрации
+      await createUserProfile(data.user.id, {
+        email,
+        role,
+        first_name: '',
+        last_name: ''
+      });
+    }
+
     return { error };
   };
 
@@ -60,10 +116,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const signOut = async () => {
     await supabase.auth.signOut();
+    setUserProfile(null);
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, loading, signIn, signUp, signOut }}>
+    <AuthContext.Provider value={{ 
+      user, 
+      session, 
+      loading, 
+      userProfile,
+      signIn, 
+      signUp, 
+      signOut,
+      refreshProfile 
+    }}>
       {children}
     </AuthContext.Provider>
   );
