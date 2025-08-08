@@ -55,24 +55,43 @@ const Booking = () => {
   const [availableDates, setAvailableDates] = useState<Date[]>([]);
   const [bookedSlots, setBookedSlots] = useState<{[key: string]: string[]}>({});
   const [availableTimeSlots, setAvailableTimeSlots] = useState<string[]>([]);
+  const [teacherId, setTeacherId] = useState<string | null>(null);
 
-  // Fetch available dates and time slots from teacher's availability
+  // Load single teacher id (only one teacher in system)
   useEffect(() => {
-    fetchTeacherAvailability();
-    fetchBookedSlots();
+    const loadTeacher = async () => {
+      const { data } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('role', 'teacher')
+        .limit(1)
+        .maybeSingle();
+      if (data) setTeacherId(data.id);
+    };
+    loadTeacher();
   }, []);
   
-  // Update available time slots whenever date changes
+  // Fetch available dates and time slots when teacherId is known
+  useEffect(() => {
+    if (teacherId) {
+      fetchTeacherAvailability();
+      fetchBookedSlots();
+    }
+  }, [teacherId]);
+
+  // Update available time slots when date/bookings/teacher change
   useEffect(() => {
     updateAvailableTimeSlots();
-  }, [date, bookedSlots]);
+  }, [date, bookedSlots, teacherId]);
 
   const fetchTeacherAvailability = async () => {
     try {
+      if (!teacherId) return;
       // Get all teacher availability entries
       const { data, error } = await supabase
         .from('teacher_availability')
         .select('*')
+        .eq('teacher_id', teacherId)
         .order('date', { ascending: true });
         
       if (error) throw error;
@@ -99,18 +118,20 @@ const Booking = () => {
       console.error('Error fetching teacher availability:', error);
     }
   };
-  
+
   const fetchBookedSlots = async () => {
     try {
+      if (!teacherId) return;
       // Get all booked slots
       const { data, error } = await supabase
         .from('bookings')
         .select('*')
+        .eq('teacher_id', teacherId)
         .gte('date', new Date().toISOString().split('T')[0])
         .order('date', { ascending: true });
         
       if (error) throw error;
-      
+
       if (data && data.length > 0) {
         // Transform to the format we need
         const booked: {[key: string]: string[]} = {};
