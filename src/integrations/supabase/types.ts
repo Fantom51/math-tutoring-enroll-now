@@ -14,7 +14,161 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      bookings: {
+        Row: {
+          created_at: string
+          date: string
+          id: string
+          status: string
+          student_id: string
+          teacher_id: string
+          time_slot: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          date: string
+          id?: string
+          status?: string
+          student_id: string
+          teacher_id: string
+          time_slot: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          date?: string
+          id?: string
+          status?: string
+          student_id?: string
+          teacher_id?: string
+          time_slot?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      homeworks: {
+        Row: {
+          created_at: string
+          description: string | null
+          file_url: string | null
+          id: string
+          teacher_id: string
+          title: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          file_url?: string | null
+          id?: string
+          teacher_id: string
+          title: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          file_url?: string | null
+          id?: string
+          teacher_id?: string
+          title?: string
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          avatar_url: string | null
+          bio: string | null
+          created_at: string
+          email: string
+          first_name: string | null
+          id: string
+          last_name: string | null
+          role: string
+          updated_at: string
+        }
+        Insert: {
+          avatar_url?: string | null
+          bio?: string | null
+          created_at?: string
+          email: string
+          first_name?: string | null
+          id: string
+          last_name?: string | null
+          role: string
+          updated_at?: string
+        }
+        Update: {
+          avatar_url?: string | null
+          bio?: string | null
+          created_at?: string
+          email?: string
+          first_name?: string | null
+          id?: string
+          last_name?: string | null
+          role?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      student_homeworks: {
+        Row: {
+          created_at: string
+          homework_id: string
+          id: string
+          solution_url: string | null
+          status: string
+          student_id: string
+        }
+        Insert: {
+          created_at?: string
+          homework_id: string
+          id?: string
+          solution_url?: string | null
+          status?: string
+          student_id: string
+        }
+        Update: {
+          created_at?: string
+          homework_id?: string
+          id?: string
+          solution_url?: string | null
+          status?: string
+          student_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "student_homeworks_homework_id_fkey"
+            columns: ["homework_id"]
+            isOneToOne: false
+            referencedRelation: "homeworks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      teacher_availability: {
+        Row: {
+          created_at: string
+          date: string
+          id: string
+          teacher_id: string
+          time_slot: string
+        }
+        Insert: {
+          created_at?: string
+          date: string
+          id?: string
+          teacher_id: string
+          time_slot: string
+        }
+        Update: {
+          created_at?: string
+          date?: string
+          id?: string
+          teacher_id?: string
+          time_slot?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
