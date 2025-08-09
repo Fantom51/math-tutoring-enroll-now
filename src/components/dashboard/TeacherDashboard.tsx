@@ -152,19 +152,9 @@ export default function TeacherDashboard() {
       
       const homeworkBucket = buckets?.find(bucket => bucket.name === 'homework_files');
       
+      // Пропускаем создание бакета на клиенте из-за RLS; он уже создан на сервере
       if (!homeworkBucket) {
-        console.log("Creating homework_files bucket...");
-        const { error: createBucketError } = await supabase.storage.createBucket('homework_files', {
-          public: false,
-          fileSizeLimit: 10485760 // 10MB
-        });
-        
-        if (createBucketError) {
-          console.error("Error creating bucket:", createBucketError);
-          throw createBucketError;
-        }
-        
-        console.log("Bucket created successfully");
+        console.warn('Bucket homework_files не найден. Обратитесь к администратору.');
       } else {
         console.log("Bucket already exists");
       }

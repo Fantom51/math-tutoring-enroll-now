@@ -27,6 +27,7 @@ import Confetti from "@/components/ui/confetti";
 import { motion, AnimatePresence } from "framer-motion";
 import emailjs from 'emailjs-com';
 import { supabase } from '@/lib/supabaseClient';
+import { useAuth } from '@/contexts/AuthContext';
 
 // Конфигурация EmailJS (ЗАМЕНИТЕ НА СВОИ ДАННЫЕ)
 const EMAILJS_CONFIG = {
@@ -42,6 +43,7 @@ const DEFAULT_TIME_SLOTS = [
 
 const Booking = () => {
   const { toast } = useToast();
+  const { user, userProfile } = useAuth();
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
@@ -184,23 +186,28 @@ const Booking = () => {
       // First save the booking in the database
       if (date && timeSlot) {
         const formattedDate = format(date, 'yyyy-MM-dd');
-        const { error: bookingError } = await supabase
-          .from('bookings')
-          .insert([
-            {
-              name,
-              phone,
-              email: email || null,
-              subject,
-              message: message || null,
-              date: formattedDate,
-              time_slot: timeSlot,
-              status: 'pending'
-            }
-          ]);
-          
-        if (bookingError) throw bookingError;
-        
+        if (!teacherId) throw new Error('Учитель не найден');
+        if (user && userProfile?.role === 'student') {
+          const { error: bookingError } = await supabase
+            .from('bookings')
+            .insert([
+              {
+                teacher_id: teacherId,
+                student_id: user.id,
+                date: formattedDate,
+                time_slot: timeSlot,
+                status: 'pending'
+              }
+            ]);
+          if (bookingError) throw bookingError;
+        } else {
+          toast({
+            title: 'Войдите для записи',
+            description: 'Чтобы забронировать время, войдите как ученик',
+            variant: 'destructive'
+          });
+        }
+
         // Update booked slots
         setBookedSlots(prev => {
           const newBookedSlots = { ...prev };

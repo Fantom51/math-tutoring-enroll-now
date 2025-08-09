@@ -35,18 +35,34 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState(true);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
 
-  // Загрузка профиля пользователя
+// Загрузка профиля пользователя
   const loadUserProfile = async (userId: string) => {
     try {
       console.log("Загружаем профиль для пользователя:", userId);
-      const profile = await getUserProfile(userId);
+      let profile = await getUserProfile(userId);
       console.log("Полученный профиль:", profile);
+
+      // Если профиль отсутствует, создаем его с ролью из метаданных
+      if (!profile) {
+        const { data: userData } = await supabase.auth.getUser();
+        const email = userData.user?.email || '';
+        const roleMeta = (userData.user?.user_metadata?.role as 'student' | 'teacher') || 'student';
+
+        if (email) {
+          const { error: createError } = await createUserProfile(userId, { email, role: roleMeta });
+          if (createError) {
+            console.error('Не удалось создать профиль:', createError);
+          } else {
+            profile = await getUserProfile(userId);
+          }
+        }
+      }
+
       setUserProfile(profile);
     } catch (error) {
       console.error('Error loading user profile:', error);
     }
   };
-
   // Обновление профиля пользователя
   const refreshProfile = async () => {
     if (user) {

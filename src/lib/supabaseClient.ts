@@ -37,7 +37,7 @@ export const updateUserProfile = async (
 
 export const createUserProfile = async (
   userId: string,
-  profileData: Partial<UserProfileRecord>
+  profileData: { email: string; role: 'student' | 'teacher'; first_name?: string | null; last_name?: string | null; avatar_url?: string | null; bio?: string | null; }
 ) => {
   return await supabase
     .from('profiles')
