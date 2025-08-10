@@ -174,7 +174,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      is_homework_assigned_to_current_user: {
+        Args: { hw_id: string }
+        Returns: boolean
+      }
     }
     Enums: {
       [_ in never]: never
