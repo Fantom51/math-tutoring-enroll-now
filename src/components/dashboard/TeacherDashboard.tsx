@@ -17,6 +17,8 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import TeacherAvailability from './TeacherAvailability';
+import { Checkbox } from '@/components/ui/checkbox';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 interface Student {
   id: string;
@@ -49,6 +51,7 @@ export default function TeacherDashboard() {
     description: '',
     file: null as File | null,
   });
+  const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
   
   useEffect(() => {
     if (user) {
@@ -127,10 +130,10 @@ export default function TeacherDashboard() {
 
   const createHomework = async () => {
     try {
-      if (!user || !newHomework.file || !newHomework.title) {
+      if (!user || !newHomework.file || !newHomework.title || selectedStudentIds.length === 0) {
         toast({
           title: 'Ошибка',
-          description: 'Заполните все поля и выберите файл',
+          description: selectedStudentIds.length === 0 ? 'Выберите хотя бы одного ученика' : 'Заполните все поля и выберите файл',
           variant: 'destructive'
         });
         return;
@@ -197,30 +200,28 @@ export default function TeacherDashboard() {
 
       console.log("Homework created successfully:", homeworkData);
 
-      // 4. Назначаем это задание всем студентам
+      // 4. Назначаем выбранным ученикам
       if (homeworkData && homeworkData.length > 0) {
         const homeworkId = homeworkData[0].id;
-        
-        if (students.length === 0) {
-          console.log("No students to assign homework to");
-        } else {
-          const studentAssignments = students.map(student => ({
-            student_id: student.id,
-            homework_id: homeworkId,
-            status: 'not_started'
-          }));
-          
-          console.log("Assigning homework to students:", studentAssignments);
+
+        const studentAssignments = selectedStudentIds.map((studentId) => ({
+          student_id: studentId,
+          homework_id: homeworkId,
+          status: 'not_started'
+        }));
+
+        if (studentAssignments.length > 0) {
+          console.log("Assigning homework to selected students:", studentAssignments);
           const { error: assignError } = await supabase
             .from('student_homeworks')
             .insert(studentAssignments);
-          
+
           if (assignError) {
             console.error("Error assigning homework to students:", assignError);
             throw assignError;
           }
-          
-          console.log("Homework assigned to students successfully");
+
+          console.log("Homework assigned to selected students successfully");
         }
       }
 
@@ -230,6 +231,7 @@ export default function TeacherDashboard() {
         description: '',
         file: null
       });
+      setSelectedStudentIds([]);
       
       setDialogOpen(false);
       await fetchHomeworks();
@@ -428,6 +430,49 @@ export default function TeacherDashboard() {
                         onChange={handleFileChange}
                       />
                     </div>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Назначить ученикам</label>
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm text-gray-600">Выбрано: {selectedStudentIds.length}</p>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setSelectedStudentIds(
+                          selectedStudentIds.length === students.length ? [] : students.map((s) => s.id)
+                        )}
+                      >
+                        {selectedStudentIds.length === students.length ? 'Снять выбор' : 'Выбрать всех'}
+                      </Button>
+                    </div>
+                    <ScrollArea className="h-48 rounded-md border p-2">
+                      <div className="space-y-2">
+                        {students.length === 0 ? (
+                          <p className="text-sm text-gray-600">Нет доступных учеников</p>
+                        ) : (
+                          students.map((student) => (
+                            <div key={student.id} className="flex items-center gap-3 p-2 rounded hover:bg-gray-50">
+                              <Checkbox
+                                id={student.id}
+                                checked={selectedStudentIds.includes(student.id)}
+                                onCheckedChange={(checked) => {
+                                  const isChecked = Boolean(checked);
+                                  setSelectedStudentIds((prev) =>
+                                    isChecked ? [...prev, student.id] : prev.filter((id) => id !== student.id)
+                                  );
+                                }}
+                              />
+                              <label htmlFor={student.id} className="text-sm leading-none cursor-pointer">
+                                {(student.first_name || student.last_name)
+                                  ? `${student.first_name || ''} ${student.last_name || ''}`.trim()
+                                  : 'Имя не указано'}
+                                <span className="ml-2 text-gray-600">({student.email})</span>
+                              </label>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </ScrollArea>
                   </div>
                   <Button 
                     onClick={createHomework} 
