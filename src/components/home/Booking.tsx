@@ -32,7 +32,7 @@ import { useAuth } from '@/contexts/AuthContext';
 // Конфигурация EmailJS (ЗАМЕНИТЕ НА СВОИ ДАННЫЕ)
 const EMAILJS_CONFIG = {
   SERVICE_ID: 'service_38km9pt',
-  TEMPLATE_ID: 'template_3zl1enj',
+  TEMPLATE_ID: 'template_ovsckqa',
   USER_ID: 'IQfUWwV4_-u1ntE-W',
   TO_EMAIL: 'student656164@gmail.com' // Ваша почта для получения заявок
 };
