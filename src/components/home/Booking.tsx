@@ -34,7 +34,7 @@ const EMAILJS_CONFIG = {
   SERVICE_ID: 'service_38km9pt',
   TEMPLATE_ID: 'template_3zl1enj',
   USER_ID: 'IQfUWwV4_-u1ntE-W',
-  TO_EMAIL: 'sashabrawl46@gmail.com' // Ваша почта для получения заявок
+  TO_EMAIL: 'student656164@gmail.com' // Ваша почта для получения заявок
 };
 
 const DEFAULT_TIME_SLOTS = [
