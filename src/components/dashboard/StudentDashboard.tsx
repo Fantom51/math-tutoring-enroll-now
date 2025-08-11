@@ -42,8 +42,9 @@ export default function StudentDashboard() {
         throw error;
       }
 
-      // Преобразуем данные в нужный формат
-      const formattedHomeworks = data.map((item: any) => ({
+      // Преобразуем данные и отфильтровываем записи без существующего задания
+      const safeData = (data || []).filter((item: any) => item.homework);
+      const formattedHomeworks = safeData.map((item: any) => ({
         id: item.homework.id,
         title: item.homework.title,
         description: item.homework.description,

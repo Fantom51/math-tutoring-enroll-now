@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { supabase } from '@/lib/supabaseClient';
 import { useToast } from '@/hooks/use-toast';
-import { Loader, Upload, FileText, Plus, Users, UserCheck, BookOpen, CalendarDays } from 'lucide-react';
+import { Loader, Upload, FileText, Plus, Users, UserCheck, BookOpen, CalendarDays, Trash } from 'lucide-react';
 import { motion } from 'framer-motion';
 import {
   Dialog,
@@ -16,6 +16,17 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import TeacherAvailability from './TeacherAvailability';
 import { Checkbox } from '@/components/ui/checkbox';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -52,7 +63,7 @@ export default function TeacherDashboard() {
     file: null as File | null,
   });
   const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
-  
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   useEffect(() => {
     if (user) {
       console.log("TeacherDashboard: User loaded, fetching data", user.id);
@@ -298,6 +309,24 @@ export default function TeacherDashboard() {
     }
   };
 
+  const deleteHomework = async (id: string) => {
+    try {
+      setDeletingId(id);
+      const { error } = await supabase
+        .from('homeworks')
+        .delete()
+        .eq('id', id);
+      if (error) throw error;
+      toast({ title: 'Удалено', description: 'Домашнее задание удалено' });
+      await fetchHomeworks();
+    } catch (error) {
+      console.error('Ошибка при удалении задания:', error);
+      toast({ title: 'Ошибка', description: 'Не удалось удалить задание', variant: 'destructive' });
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex justify-center items-center h-64">
@@ -508,15 +537,54 @@ export default function TeacherDashboard() {
                   </CardHeader>
                   <CardContent>
                     <p className="mb-4">{homework.description}</p>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="flex items-center space-x-2"
-                      onClick={() => downloadHomework(homework.file_url, `${homework.title}.pdf`)}
-                    >
-                      <FileText className="h-4 w-4" />
-                      <span>Скачать задание</span>
-                    </Button>
+                    <div className="flex items-center justify-between">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="flex items-center space-x-2"
+                        onClick={() => downloadHomework(homework.file_url, `${homework.title}.pdf`)}
+                      >
+                        <FileText className="h-4 w-4" />
+                        <span>Скачать задание</span>
+                      </Button>
+
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            className="flex items-center gap-2"
+                            disabled={deletingId === homework.id}
+                          >
+                            {deletingId === homework.id ? (
+                              <>
+                                <Loader className="h-4 w-4 animate-spin" />
+                                Удаление...
+                              </>
+                            ) : (
+                              <>
+                                <Trash className="h-4 w-4" />
+                                Удалить
+                              </>
+                            )}
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Удалить задание?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              Это действие нельзя отменить. Задание будет удалено для всех назначенных учеников.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Отмена</AlertDialogCancel>
+                            <AlertDialogAction onClick={() => deleteHomework(homework.id)}>
+                              Подтвердить
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </div>
                   </CardContent>
                 </Card>
               </motion.div>
