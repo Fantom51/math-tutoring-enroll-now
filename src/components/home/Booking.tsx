@@ -183,43 +183,47 @@ const Booking = () => {
     setLoading(true);
 
     try {
-      // First save the booking in the database
-      if (date && timeSlot) {
-        const formattedDate = format(date, 'yyyy-MM-dd');
-        if (!teacherId) throw new Error('Учитель не найден');
-        if (user && userProfile?.role === 'student') {
-          const { error: bookingError } = await supabase
-            .from('bookings')
-            .insert([
-              {
-                teacher_id: teacherId,
-                student_id: user.id,
-                date: formattedDate,
-                time_slot: timeSlot,
-                status: 'pending'
-              }
-            ]);
-          if (bookingError) throw bookingError;
-        } else {
-          toast({
-            title: 'Войдите для записи',
-            description: 'Чтобы забронировать время, войдите как ученик',
-            variant: 'destructive'
-          });
-        }
+      if (!date || !timeSlot) return;
 
-        // Update booked slots
-        setBookedSlots(prev => {
-          const newBookedSlots = { ...prev };
-          if (!newBookedSlots[formattedDate]) {
-            newBookedSlots[formattedDate] = [];
-          }
-          newBookedSlots[formattedDate].push(timeSlot);
-          return newBookedSlots;
+      const formattedDate = format(date, 'yyyy-MM-dd');
+      if (!teacherId) throw new Error('Учитель не найден');
+
+      // Разрешаем запись только авторизованным пользователям с ролью "ученик"
+      if (!(user && userProfile?.role === 'student')) {
+        toast({
+          title: 'Войдите для записи',
+          description: 'Чтобы забронировать время, войдите как ученик',
+          variant: 'destructive'
         });
+        setLoading(false);
+        return;
       }
-      
-      // Then send email notification
+
+      // Сохраняем запись в базе
+      const { error: bookingError } = await supabase
+        .from('bookings')
+        .insert([
+          {
+            teacher_id: teacherId,
+            student_id: user.id,
+            date: formattedDate,
+            time_slot: timeSlot,
+            status: 'pending'
+          }
+        ]);
+      if (bookingError) throw bookingError;
+
+      // Обновляем локально занятые слоты только после успешной вставки
+      setBookedSlots(prev => {
+        const newBookedSlots = { ...prev } as { [key: string]: string[] };
+        if (!newBookedSlots[formattedDate]) {
+          newBookedSlots[formattedDate] = [];
+        }
+        newBookedSlots[formattedDate].push(timeSlot);
+        return newBookedSlots;
+      });
+
+      // Отправляем email-уведомление
       const templateParams = {
         name,
         phone,
@@ -242,16 +246,16 @@ const Booking = () => {
       setShowSuccess(true);
 
       toast({
-        title: "Заявка отправлена!",
-        description: "Мы свяжемся с вами в ближайшее время для подтверждения записи."
+        title: 'Заявка отправлена!',
+        description: 'Мы свяжемся с вами в ближайшее время для подтверждения записи.'
       });
 
       setTimeout(() => {
-        setName("");
-        setPhone("");
-        setEmail("");
-        setSubject("");
-        setMessage("");
+        setName('');
+        setPhone('');
+        setEmail('');
+        setSubject('');
+        setMessage('');
         setDate(undefined);
         setTimeSlot(undefined);
         setShowSuccess(false);

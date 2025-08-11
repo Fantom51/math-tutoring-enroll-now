@@ -47,6 +47,15 @@ interface Homework {
   created_at: string;
 }
 
+interface BookingRecord {
+  id: string;
+  date: string; // yyyy-mm-dd
+  time_slot: string;
+  student_id: string;
+  status: string;
+  created_at: string;
+}
+
 export default function TeacherDashboard() {
   const { user, userProfile } = useAuth();
   const { toast } = useToast();
@@ -64,12 +73,15 @@ export default function TeacherDashboard() {
   });
   const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [bookings, setBookings] = useState<BookingRecord[]>([]);
+  const [loadingBookings, setLoadingBookings] = useState<boolean>(false);
   useEffect(() => {
     if (user) {
       console.log("TeacherDashboard: User loaded, fetching data", user.id);
       console.log("User profile:", userProfile);
       fetchStudents();
       fetchHomeworks();
+      fetchBookings();
     }
   }, [user, userProfile]);
 
@@ -131,6 +143,28 @@ export default function TeacherDashboard() {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchBookings = async () => {
+    try {
+      if (!user) return;
+      setLoadingBookings(true);
+      const today = new Date().toISOString().split('T')[0];
+      const { data, error } = await supabase
+        .from('bookings')
+        .select('*')
+        .eq('teacher_id', user.id)
+        .gte('date', today)
+        .order('date', { ascending: true })
+        .order('time_slot', { ascending: true });
+      if (error) throw error;
+      setBookings(data || []);
+    } catch (error) {
+      console.error('Ошибка при загрузке записей:', error);
+      toast({ title: 'Ошибка', description: 'Не удалось загрузить список записей', variant: 'destructive' });
+    } finally {
+      setLoadingBookings(false);
     }
   };
 
@@ -600,7 +634,48 @@ export default function TeacherDashboard() {
       )}
       
       {activeTab === 'availability' && (
-        <TeacherAvailability />
+        <div className="space-y-6">
+          <TeacherAvailability />
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <CalendarDays className="w-5 h-5" />
+                <span>Записи учеников</span>
+              </CardTitle>
+              <CardDescription>Ближайшие бронирования занятий</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {loadingBookings ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader className="h-5 w-5 animate-spin text-math-primary" />
+                </div>
+              ) : bookings.length === 0 ? (
+                <div className="text-center p-4 bg-gray-50 rounded-lg">
+                  <p className="text-gray-600">Пока нет записей от учеников</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {bookings.map((b) => {
+                    const student = students.find((s) => s.id === b.student_id);
+                    const studentName = student && (student.first_name || student.last_name)
+                      ? `${student.first_name || ''} ${student.last_name || ''}`.trim()
+                      : (student?.email || 'Неизвестный ученик');
+                    return (
+                      <div key={b.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50">
+                        <div>
+                          <p className="font-medium">{new Date(b.date).toLocaleDateString('ru-RU')} • {b.time_slot}</p>
+                          <p className="text-sm text-gray-600">{studentName}</p>
+                        </div>
+                        <span className="text-xs px-2 py-1 rounded bg-gray-100 text-gray-700 capitalize">{b.status}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
       )}
     </div>
   );
