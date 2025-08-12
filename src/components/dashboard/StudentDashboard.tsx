@@ -296,7 +296,10 @@ export default function StudentDashboard() {
                       variant="outline"
                       size="sm"
                       className="flex items-center space-x-2"
-                      onClick={() => downloadHomework(homework.file_url, `${homework.title}.pdf`)}
+                      onClick={() => {
+                        const ext = (homework.file_url.split('.').pop() || 'file');
+                        downloadHomework(homework.file_url, `${homework.title}.${ext}`);
+                      }}
                     >
                       <FileText className="h-4 w-4" />
                       <span>Скачать задание</span>

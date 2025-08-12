@@ -484,12 +484,12 @@ export default function TeacherDashboard() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <label htmlFor="file" className="text-sm font-medium">Файл задания</label>
+                    <label htmlFor="file" className="text-sm font-medium">Файл задания (PDF/Doc/изображение)</label>
                     <div className="flex items-center space-x-2">
                       <Input
                         id="file"
                         type="file"
-                        accept=".pdf,.doc,.docx"
+                        accept=".pdf,.doc,.docx,image/*"
                         onChange={handleFileChange}
                       />
                     </div>
@@ -576,7 +576,10 @@ export default function TeacherDashboard() {
                         variant="outline"
                         size="sm"
                         className="flex items-center space-x-2"
-                        onClick={() => downloadHomework(homework.file_url, `${homework.title}.pdf`)}
+                        onClick={() => {
+                          const ext = (homework.file_url.split('.').pop() || 'file');
+                          downloadHomework(homework.file_url, `${homework.title}.${ext}`);
+                        }}
                       >
                         <FileText className="h-4 w-4" />
                         <span>Скачать задание</span>
