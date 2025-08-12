@@ -1,9 +1,11 @@
 
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { supabase } from '@/lib/supabaseClient';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { supabase, updateUserProfile } from '@/lib/supabaseClient';
 import { useToast } from '@/hooks/use-toast';
 import { Loader, Upload, FileText, CalendarDays, Clock } from 'lucide-react';
 import { motion } from 'framer-motion';
@@ -28,7 +30,7 @@ interface StudentBooking {
 }
 
 export default function StudentDashboard() {
-  const { user } = useAuth();
+  const { user, userProfile, refreshProfile } = useAuth();
   const { toast } = useToast();
   const [homeworks, setHomeworks] = useState<Homework[]>([]);
   const [loading, setLoading] = useState(true);
@@ -36,10 +38,18 @@ export default function StudentDashboard() {
   const [bookings, setBookings] = useState<StudentBooking[]>([]);
   const [loadingBookings, setLoadingBookings] = useState<boolean>(false);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
+  const [firstName, setFirstName] = useState<string>('');
+  const [lastName, setLastName] = useState<string>('');
+  const [savingProfile, setSavingProfile] = useState<boolean>(false);
   useEffect(() => {
     fetchHomeworks();
     fetchBookings();
   }, [user]);
+
+  useEffect(() => {
+    setFirstName(userProfile?.first_name || '');
+    setLastName(userProfile?.last_name || '');
+  }, [userProfile?.first_name, userProfile?.last_name]);
 
   const fetchHomeworks = async () => {
     try {
@@ -119,6 +129,25 @@ export default function StudentDashboard() {
       toast({ title: 'Ошибка', description: 'Не удалось отменить запись', variant: 'destructive' });
     } finally {
       setCancellingId(null);
+    }
+  };
+
+  const saveProfile = async () => {
+    if (!user) return;
+    try {
+      setSavingProfile(true);
+      const { error } = await updateUserProfile(user.id, {
+        first_name: firstName.trim() || null,
+        last_name: lastName.trim() || null,
+      } as any);
+      if (error) throw error;
+      toast({ title: 'Профиль обновлён', description: 'Имя и фамилия сохранены' });
+      await refreshProfile();
+    } catch (error) {
+      console.error('Ошибка сохранения профиля:', error);
+      toast({ title: 'Ошибка', description: 'Не удалось сохранить профиль', variant: 'destructive' });
+    } finally {
+      setSavingProfile(false);
     }
   };
 
@@ -203,6 +232,37 @@ export default function StudentDashboard() {
 
   return (
     <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle>Мой профиль</CardTitle>
+          <CardDescription>Укажите имя и фамилию, чтобы преподаватель вас распознавал</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="firstName">Имя</Label>
+              <Input id="firstName" value={firstName} onChange={(e) => setFirstName(e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="lastName">Фамилия</Label>
+              <Input id="lastName" value={lastName} onChange={(e) => setLastName(e.target.value)} />
+            </div>
+          </div>
+        </CardContent>
+        <CardFooter className="justify-end">
+          <Button onClick={saveProfile} disabled={savingProfile}>
+            {savingProfile ? (
+              <>
+                <Loader className="mr-2 h-4 w-4 animate-spin" />
+                Сохранение...
+              </>
+            ) : (
+              'Сохранить'
+            )}
+          </Button>
+        </CardFooter>
+      </Card>
+
       <div>
         <h2 className="text-2xl font-bold">Мои домашние задания</h2>
         <p className="text-gray-600">Список заданий для выполнения</p>
