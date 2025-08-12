@@ -5,9 +5,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/lib/supabaseClient';
 import { useToast } from '@/hooks/use-toast';
-import { Loader, Upload, FileText } from 'lucide-react';
+import { Loader, Upload, FileText, CalendarDays, Clock } from 'lucide-react';
 import { motion } from 'framer-motion';
-
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 interface Homework {
   id: string;
   title: string;
@@ -18,15 +18,27 @@ interface Homework {
   solution_url: string | null;
 }
 
+interface StudentBooking {
+  id: string;
+  date: string; // yyyy-mm-dd
+  time_slot: string;
+  teacher_id: string;
+  status: string;
+  created_at: string;
+}
+
 export default function StudentDashboard() {
   const { user } = useAuth();
   const { toast } = useToast();
   const [homeworks, setHomeworks] = useState<Homework[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState<string | null>(null);
-
+  const [bookings, setBookings] = useState<StudentBooking[]>([]);
+  const [loadingBookings, setLoadingBookings] = useState<boolean>(false);
+  const [cancellingId, setCancellingId] = useState<string | null>(null);
   useEffect(() => {
     fetchHomeworks();
+    fetchBookings();
   }, [user]);
 
   const fetchHomeworks = async () => {
@@ -64,6 +76,49 @@ export default function StudentDashboard() {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchBookings = async () => {
+    try {
+      if (!user) return;
+      setLoadingBookings(true);
+      const today = new Date().toISOString().split('T')[0];
+      const { data, error } = await supabase
+        .from('bookings')
+        .select('*')
+        .eq('student_id', user.id)
+        .neq('status', 'cancelled')
+        .gte('date', today)
+        .order('date', { ascending: true })
+        .order('time_slot', { ascending: true });
+
+      if (error) throw error;
+      setBookings(data || []);
+    } catch (error) {
+      console.error('Ошибка при загрузке записей:', error);
+      toast({ title: 'Ошибка', description: 'Не удалось загрузить записи', variant: 'destructive' });
+    } finally {
+      setLoadingBookings(false);
+    }
+  };
+
+  const cancelBooking = async (bookingId: string) => {
+    try {
+      setCancellingId(bookingId);
+      const { error } = await supabase
+        .from('bookings')
+        .update({ status: 'cancelled' })
+        .eq('id', bookingId)
+        .eq('student_id', user?.id || '');
+      if (error) throw error;
+      toast({ title: 'Запись отменена', description: 'Вы успешно отменили запись' });
+      await fetchBookings();
+    } catch (error) {
+      console.error('Ошибка отмены записи:', error);
+      toast({ title: 'Ошибка', description: 'Не удалось отменить запись', variant: 'destructive' });
+    } finally {
+      setCancellingId(null);
     }
   };
 
@@ -232,6 +287,70 @@ export default function StudentDashboard() {
                 </CardContent>
               </Card>
             </motion.div>
+          ))}
+        </div>
+      )}
+
+      <div className="pt-8">
+        <h2 className="text-2xl font-bold flex items-center gap-2">
+          <CalendarDays className="h-5 w-5" />
+          Мои записи
+        </h2>
+        <p className="text-gray-600">Ваши ближайшие занятия</p>
+      </div>
+
+      {loadingBookings ? (
+        <div className="flex justify-center items-center h-24">
+          <Loader className="h-6 w-6 animate-spin text-math-primary" />
+        </div>
+      ) : bookings.length === 0 ? (
+        <div className="text-center p-8 bg-gray-50 rounded-lg">
+          <p className="text-gray-600">У вас пока нет активных записей</p>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {bookings.map((b) => (
+            <Card key={b.id}>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <CalendarDays className="h-4 w-4" />
+                  {new Date(b.date).toLocaleDateString('ru-RU')}
+                </CardTitle>
+                <CardDescription className="flex items-center gap-2">
+                  <Clock className="h-4 w-4" />
+                  {b.time_slot}
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="flex items-center justify-between">
+                <div className="text-sm text-gray-600">Статус: {b.status}</div>
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="destructive" size="sm" disabled={cancellingId === b.id}>
+                      {cancellingId === b.id ? (
+                        <>
+                          <Loader className="mr-2 h-4 w-4 animate-spin" />
+                          Отмена...
+                        </>
+                      ) : (
+                        'Отменить запись'
+                      )}
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Отменить запись?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Вы уверены, что хотите отменить запись на {new Date(b.date).toLocaleDateString('ru-RU')} в {b.time_slot}?
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Нет</AlertDialogCancel>
+                      <AlertDialogAction onClick={() => cancelBooking(b.id)}>Да, отменить</AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              </CardContent>
+            </Card>
           ))}
         </div>
       )}
