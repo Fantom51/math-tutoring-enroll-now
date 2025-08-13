@@ -29,6 +29,14 @@ interface StudentBooking {
   created_at: string;
 }
 
+interface CheatSheet {
+  id: string;
+  title: string | null;
+  description: string | null;
+  file_path: string;
+  created_at: string;
+}
+
 export default function StudentDashboard() {
   const { user, userProfile, refreshProfile } = useAuth();
   const { toast } = useToast();
@@ -41,9 +49,12 @@ export default function StudentDashboard() {
   const [firstName, setFirstName] = useState<string>('');
   const [lastName, setLastName] = useState<string>('');
   const [savingProfile, setSavingProfile] = useState<boolean>(false);
+  const [cheatSheets, setCheatSheets] = useState<CheatSheet[]>([]);
+  const [loadingCheats, setLoadingCheats] = useState<boolean>(false);
   useEffect(() => {
     fetchHomeworks();
     fetchBookings();
+    fetchCheatSheets();
   }, [user]);
 
   useEffect(() => {
@@ -110,6 +121,46 @@ export default function StudentDashboard() {
       toast({ title: 'Ошибка', description: 'Не удалось загрузить записи', variant: 'destructive' });
     } finally {
       setLoadingBookings(false);
+    }
+  };
+
+  const fetchCheatSheets = async () => {
+    try {
+      if (!user) return;
+      setLoadingCheats(true);
+      const { data, error } = await (supabase as any)
+        .from('student_cheatsheets')
+        .select('*')
+        .eq('student_id', user.id)
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      setCheatSheets(data || []);
+    } catch (error) {
+      console.error('Ошибка при загрузке шпаргалок:', error);
+      toast({ title: 'Ошибка', description: 'Не удалось загрузить шпаргалки', variant: 'destructive' });
+    } finally {
+      setLoadingCheats(false);
+    }
+  };
+
+  const downloadCheatsheet = async (filePath: string, title: string) => {
+    try {
+      const { data, error } = await supabase.storage
+        .from('learning_resources')
+        .download(filePath);
+      if (error) throw error;
+      const ext = (filePath.split('.').pop() || 'file');
+      const blob = new Blob([data]);
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${title || 'cheatsheet'}.${ext}`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (error) {
+      console.error('Ошибка при скачивании шпаргалки:', error);
+      toast({ title: 'Ошибка скачивания', description: 'Не удалось скачать файл', variant: 'destructive' });
     }
   };
 

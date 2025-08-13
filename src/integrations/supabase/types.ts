@@ -110,6 +110,36 @@ export type Database = {
         }
         Relationships: []
       }
+      student_cheatsheets: {
+        Row: {
+          created_at: string
+          description: string | null
+          file_path: string
+          id: string
+          student_id: string
+          teacher_id: string
+          title: string | null
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          file_path: string
+          id?: string
+          student_id: string
+          teacher_id: string
+          title?: string | null
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          file_path?: string
+          id?: string
+          student_id?: string
+          teacher_id?: string
+          title?: string | null
+        }
+        Relationships: []
+      }
       student_homeworks: {
         Row: {
           created_at: string
