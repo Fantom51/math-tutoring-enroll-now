@@ -10,6 +10,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Loader, Upload, FileText, CalendarDays, Clock } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import StudentCheatSheets from './StudentCheatSheets';
 interface Homework {
   id: string;
   title: string;
@@ -300,7 +301,8 @@ export default function StudentDashboard() {
             </div>
           </div>
         </CardContent>
-        <CardFooter className="justify-end">
+        <CardFooter className="justify-between">
+          <StudentCheatSheets />
           <Button onClick={saveProfile} disabled={savingProfile}>
             {savingProfile ? (
               <>

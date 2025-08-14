@@ -7,7 +7,7 @@ export type Json =
   | Json[]
 
 export type Database = {
-  // Allows to automatically instanciate createClient with right options
+  // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
     PostgrestVersion: "13.0.4"
@@ -43,6 +43,33 @@ export type Database = {
           student_id?: string
           teacher_id?: string
           time_slot?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      cheat_sheet_topics: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          name: string
+          teacher_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name: string
+          teacher_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name?: string
+          teacher_id?: string
           updated_at?: string
         }
         Relationships: []
@@ -119,6 +146,7 @@ export type Database = {
           student_id: string
           teacher_id: string
           title: string | null
+          topic_id: string | null
         }
         Insert: {
           created_at?: string
@@ -128,6 +156,7 @@ export type Database = {
           student_id: string
           teacher_id: string
           title?: string | null
+          topic_id?: string | null
         }
         Update: {
           created_at?: string
@@ -137,8 +166,17 @@ export type Database = {
           student_id?: string
           teacher_id?: string
           title?: string | null
+          topic_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "student_cheatsheets_topic_id_fkey"
+            columns: ["topic_id"]
+            isOneToOne: false
+            referencedRelation: "cheat_sheet_topics"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       student_homeworks: {
         Row: {

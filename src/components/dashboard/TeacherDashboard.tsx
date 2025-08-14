@@ -31,6 +31,7 @@ import TeacherAvailability from './TeacherAvailability';
 import { Checkbox } from '@/components/ui/checkbox';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import CheatSheetTopicsManager, { CheatSheetTopic } from './CheatSheetTopicsManager';
 
 interface Student {
   id: string;
@@ -63,6 +64,7 @@ interface CheatSheet {
   description: string | null;
   file_path: string;
   student_id: string;
+  topic_id: string | null;
   created_at: string;
 }
 
@@ -87,7 +89,8 @@ export default function TeacherDashboard() {
   const [loadingBookings, setLoadingBookings] = useState<boolean>(false);
   const [cheatSheets, setCheatSheets] = useState<CheatSheet[]>([]);
   const [selectedCheatStudentId, setSelectedCheatStudentId] = useState<string>('');
-  const [newCheat, setNewCheat] = useState({ title: '', description: '', file: null as File | null });
+  const [selectedTopicId, setSelectedTopicId] = useState<string>('');
+  const [newCheat, setNewCheat] = useState({ title: '', description: '', file: null as File | null, topicId: '' });
   const [uploadingCheat, setUploadingCheat] = useState(false);
   const [deletingCheatId, setDeletingCheatId] = useState<string | null>(null);
   useEffect(() => {
@@ -400,8 +403,8 @@ export default function TeacherDashboard() {
 
   const createCheatSheet = async () => {
     try {
-      if (!user || !selectedCheatStudentId || !newCheat.file || !newCheat.title) {
-        toast({ title: 'Ошибка', description: 'Выберите ученика, укажите название и файл', variant: 'destructive' });
+      if (!user || !selectedCheatStudentId || !newCheat.file || !newCheat.title || !selectedTopicId) {
+        toast({ title: 'Ошибка', description: 'Выберите ученика, тему, укажите название и файл', variant: 'destructive' });
         return;
       }
       setUploadingCheat(true);
@@ -418,6 +421,7 @@ export default function TeacherDashboard() {
         .insert([{ 
           teacher_id: user.id, 
           student_id: selectedCheatStudentId, 
+          topic_id: selectedTopicId,
           title: newCheat.title, 
           description: newCheat.description || null, 
           file_path: uploadData?.path || filePath 
@@ -425,7 +429,8 @@ export default function TeacherDashboard() {
       if (insertError) throw insertError;
 
       toast({ title: 'Шпаргалка добавлена', description: 'Файл успешно прикреплён ученику' });
-      setNewCheat({ title: '', description: '', file: null });
+      setNewCheat({ title: '', description: '', file: null, topicId: '' });
+      setSelectedTopicId('');
       await fetchCheatSheetsForStudent(selectedCheatStudentId);
     } catch (error) {
       console.error('Ошибка при добавлении шпаргалки:', error);
@@ -766,10 +771,15 @@ export default function TeacherDashboard() {
       
       {activeTab === 'cheatsheets' && (
         <div className="space-y-6">
+          <CheatSheetTopicsManager
+            onTopicSelect={setSelectedTopicId}
+            selectedTopicId={selectedTopicId}
+          />
+          
           <Card>
             <CardHeader>
               <CardTitle>Шпаргалки для учеников</CardTitle>
-              <CardDescription>Прикрепляйте файлы-помощники к конкретным ученикам</CardDescription>
+              <CardDescription>Прикрепляйте файлы-помощники к конкретным ученикам по темам</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="grid gap-4 md:grid-cols-2">
@@ -789,10 +799,16 @@ export default function TeacherDashboard() {
                   </Select>
                 </div>
                 <div className="space-y-2">
+                  <label className="text-sm font-medium">Выберите тему</label>
+                  <div className="text-sm text-gray-600 mb-2">
+                    {selectedTopicId ? 'Тема выбрана из списка выше' : 'Сначала выберите тему из списка выше'}
+                  </div>
+                </div>
+                <div className="space-y-2">
                   <label htmlFor="cheat-title" className="text-sm font-medium">Название</label>
                   <Input id="cheat-title" value={newCheat.title} onChange={(e) => setNewCheat({ ...newCheat, title: e.target.value })} />
                 </div>
-                <div className="md:col-span-2 space-y-2">
+                <div className="space-y-2">
                   <label htmlFor="cheat-desc" className="text-sm font-medium">Описание (необязательно)</label>
                   <Textarea id="cheat-desc" rows={3} value={newCheat.description} onChange={(e) => setNewCheat({ ...newCheat, description: e.target.value })} />
                 </div>
@@ -802,7 +818,7 @@ export default function TeacherDashboard() {
                 </div>
               </div>
               <div className="mt-4 flex justify-end">
-                <Button onClick={createCheatSheet} disabled={uploadingCheat || !selectedCheatStudentId}>
+                <Button onClick={createCheatSheet} disabled={uploadingCheat || !selectedCheatStudentId || !selectedTopicId}>
                   {uploadingCheat ? (
                     <>
                       <Loader className="mr-2 h-4 w-4 animate-spin" />
