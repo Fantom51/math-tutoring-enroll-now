@@ -49,32 +49,39 @@ const StudentBookings = () => {
     try {
       if (!user) return;
       
-      const { data, error } = await supabase
+      // Сначала получаем записи
+      const { data: bookingsData, error: bookingsError } = await supabase
         .from('bookings')
-        .select(`
-          id,
-          date,
-          time_slot,
-          teacher_id,
-          status,
-          created_at,
-          profiles!bookings_teacher_id_fkey (
-            first_name,
-            last_name
-          )
-        `)
+        .select('*')
         .eq('student_id', user.id)
         .order('date', { ascending: true })
         .order('time_slot', { ascending: true });
 
-      if (error) throw error;
+      if (bookingsError) throw bookingsError;
 
-      const formattedBookings = data?.map((booking: any) => ({
-        ...booking,
-        teacher_name: booking.profiles 
-          ? `${booking.profiles.first_name || ''} ${booking.profiles.last_name || ''}`.trim()
-          : 'Неизвестный преподаватель'
-      })) || [];
+      // Получаем уникальные ID преподавателей
+      const teacherIds = [...new Set(bookingsData?.map(b => b.teacher_id) || [])];
+      
+      // Получаем данные преподавателей
+      const { data: teachersData, error: teachersError } = await supabase
+        .from('profiles')
+        .select('id, first_name, last_name')
+        .in('id', teacherIds);
+
+      if (teachersError) throw teachersError;
+
+      // Создаем мапу преподавателей для быстрого поиска
+      const teachersMap = new Map(teachersData?.map(t => [t.id, t]) || []);
+
+      const formattedBookings = bookingsData?.map((booking: any) => {
+        const teacher = teachersMap.get(booking.teacher_id);
+        return {
+          ...booking,
+          teacher_name: teacher 
+            ? `${teacher.first_name || ''} ${teacher.last_name || ''}`.trim()
+            : 'Неизвестный преподаватель'
+        };
+      }) || [];
 
       setBookings(formattedBookings);
     } catch (error) {
