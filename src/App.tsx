@@ -12,6 +12,9 @@ import Login from "./pages/Login";
 import Register from "./pages/Register";
 import Dashboard from "./pages/Dashboard";
 import CheatSheets from "./pages/CheatSheets";
+import StudentProfile from "./pages/StudentProfile";
+import StudentHomework from "./pages/StudentHomework";
+import StudentBookings from "./pages/StudentBookings";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -33,6 +36,9 @@ const App = () => (
               <Route element={<ProtectedRoute />}>
                 <Route path="/dashboard" element={<Dashboard />} />
                 <Route path="/cheat-sheets" element={<CheatSheets />} />
+                <Route path="/profile" element={<StudentProfile />} />
+                <Route path="/homework" element={<StudentHomework />} />
+                <Route path="/bookings" element={<StudentBookings />} />
               </Route>
               
               {/* Страница не найдена */}
