@@ -4,8 +4,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
-import { Loader, Calendar, Clock, User, X } from 'lucide-react';
+import { Loader, Calendar, Clock, User, X, ArrowLeft } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { Link } from 'react-router-dom';
 import Navbar from '@/components/layout/Navbar';
 import Footer from '@/components/layout/Footer';
 import { supabase } from '@/lib/supabaseClient';
@@ -165,15 +166,23 @@ const StudentBookings = () => {
       transition={{ duration: 0.5 }}
     >
       <Navbar />
-      <main className="container mx-auto pt-24 pb-16 px-4">
+      <main className="container mx-auto pt-20 pb-16 px-4">
         <motion.div
           initial={{ y: 20, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           transition={{ duration: 0.5 }}
         >
-          <div className="mb-8">
-            <h1 className="text-3xl font-bold mb-2">Мои записи</h1>
-            <p className="text-gray-600">Управление записями на уроки</p>
+          <div className="flex items-center gap-4 mb-8">
+            <Link to="/dashboard">
+              <Button variant="outline" size="sm">
+                <ArrowLeft className="h-4 w-4 mr-2" />
+                Назад в кабинет
+              </Button>
+            </Link>
+            <div>
+              <h1 className="text-3xl font-bold mb-2">Мои записи</h1>
+              <p className="text-gray-600">Управление записями на уроки</p>
+            </div>
           </div>
 
           {/* Предстоящие записи */}

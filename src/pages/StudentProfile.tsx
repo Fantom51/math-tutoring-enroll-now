@@ -4,8 +4,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
-import { Loader, User } from 'lucide-react';
+import { Loader, User, ArrowLeft } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { Link } from 'react-router-dom';
 import Navbar from '@/components/layout/Navbar';
 import Footer from '@/components/layout/Footer';
 import { updateUserProfile } from '@/lib/supabaseClient';
@@ -60,13 +61,26 @@ const StudentProfile = () => {
       transition={{ duration: 0.5 }}
     >
       <Navbar />
-      <main className="container mx-auto pt-24 pb-16 px-4">
+      <main className="container mx-auto pt-20 pb-16 px-4">
         <motion.div
           initial={{ y: 20, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           transition={{ duration: 0.5 }}
           className="max-w-2xl mx-auto"
         >
+          <div className="flex items-center gap-4 mb-8">
+            <Link to="/dashboard">
+              <Button variant="outline" size="sm">
+                <ArrowLeft className="h-4 w-4 mr-2" />
+                Назад в кабинет
+              </Button>
+            </Link>
+            <div>
+              <h1 className="text-3xl font-bold mb-2">Мой профиль</h1>
+              <p className="text-gray-600">Управление личными данными</p>
+            </div>
+          </div>
+
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">

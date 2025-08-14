@@ -15,7 +15,7 @@ export default function StudentDashboard() {
       transition={{ duration: 0.5 }}
     >
       <Navbar />
-      <main className="container mx-auto pt-24 pb-16 px-4">
+      <main className="container mx-auto pt-20 pb-16 px-4">
         <motion.div
           initial={{ y: 20, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
