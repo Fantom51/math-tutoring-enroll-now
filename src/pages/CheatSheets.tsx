@@ -4,10 +4,16 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/lib/supabaseClient';
 import { useToast } from '@/hooks/use-toast';
-import { Loader, FileText, BookOpen, Download, ArrowLeft } from 'lucide-react';
+import { Loader, FileText, BookOpen, Download, ArrowLeft, Eye, X } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import Navbar from '@/components/layout/Navbar';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 interface CheatSheetTopic {
   id: string;
@@ -33,6 +39,8 @@ export default function CheatSheetsPage() {
   const [selectedTopicId, setSelectedTopicId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadingSheets, setLoadingSheets] = useState(false);
+  const [previewFile, setPreviewFile] = useState<{ url: string; name: string; type: string } | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
 
   useEffect(() => {
     fetchTopics();
@@ -113,6 +121,45 @@ export default function CheatSheetsPage() {
     }
   };
 
+  const previewCheatSheet = async (filePath: string, title: string) => {
+    try {
+      setPreviewLoading(true);
+      const { data, error } = await supabase.storage
+        .from('learning_resources')
+        .createSignedUrl(filePath, 3600); // URL действует 1 час
+
+      if (error) throw error;
+
+      const fileExtension = filePath.split('.').pop()?.toLowerCase() || '';
+      const fileType = getFileType(fileExtension);
+      
+      setPreviewFile({
+        url: data.signedUrl,
+        name: title || 'Шпаргалка',
+        type: fileType
+      });
+    } catch (error) {
+      console.error('Ошибка при создании превью:', error);
+      toast({
+        title: 'Ошибка превью',
+        description: 'Не удалось создать превью файла',
+        variant: 'destructive'
+      });
+      // Fallback to download
+      downloadCheatSheet(filePath, title);
+    } finally {
+      setPreviewLoading(false);
+    }
+  };
+
+  const getFileType = (extension: string): string => {
+    const imageExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
+    const pdfExtensions = ['pdf'];
+    
+    if (imageExtensions.includes(extension)) return 'image';
+    if (pdfExtensions.includes(extension)) return 'pdf';
+    return 'other';
+  };
   const downloadCheatSheet = async (filePath: string, title: string) => {
     try {
       const { data, error } = await supabase.storage
@@ -137,6 +184,53 @@ export default function CheatSheetsPage() {
         description: 'Не удалось скачать файл',
         variant: 'destructive'
       });
+    }
+  };
+
+  const renderPreviewContent = () => {
+    if (!previewFile) return null;
+
+    switch (previewFile.type) {
+      case 'image':
+        return (
+          <div className="flex justify-center">
+            <img 
+              src={previewFile.url} 
+              alt={previewFile.name}
+              className="max-w-full max-h-[70vh] object-contain rounded-lg"
+            />
+          </div>
+        );
+      case 'pdf':
+        return (
+          <div className="w-full h-[70vh]">
+            <iframe
+              src={previewFile.url}
+              className="w-full h-full border-0 rounded-lg"
+              title={previewFile.name}
+            />
+          </div>
+        );
+      default:
+        return (
+          <div className="text-center p-8">
+            <FileText className="h-16 w-16 mx-auto text-gray-400 mb-4" />
+            <p className="text-gray-600 mb-4">Превью недоступно для этого типа файла</p>
+            <Button 
+              onClick={() => {
+                if (previewFile) {
+                  const link = document.createElement('a');
+                  link.href = previewFile.url;
+                  link.download = previewFile.name;
+                  link.click();
+                }
+              }}
+            >
+              <Download className="h-4 w-4 mr-2" />
+              Скачать файл
+            </Button>
+          </div>
+        );
     }
   };
 
@@ -268,15 +362,29 @@ export default function CheatSheetsPage() {
                                   {sheet.description && (
                                     <p className="text-sm text-gray-600">{sheet.description}</p>
                                   )}
-                                  <Button
-                                    variant="default"
-                                    size="sm"
-                                    className="w-full"
-                                    onClick={() => downloadCheatSheet(sheet.file_path, sheet.title || 'cheatsheet')}
-                                  >
-                                    <Download className="h-4 w-4 mr-2" />
-                                    Скачать
-                                  </Button>
+                                  <div className="flex gap-2">
+                                    <Button
+                                      variant="default"
+                                      size="sm"
+                                      className="flex-1"
+                                      disabled={previewLoading}
+                                      onClick={() => previewCheatSheet(sheet.file_path, sheet.title || 'cheatsheet')}
+                                    >
+                                      {previewLoading ? (
+                                        <Loader className="h-4 w-4 mr-2 animate-spin" />
+                                      ) : (
+                                        <Eye className="h-4 w-4 mr-2" />
+                                      )}
+                                      Просмотр
+                                    </Button>
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => downloadCheatSheet(sheet.file_path, sheet.title || 'cheatsheet')}
+                                    >
+                                      <Download className="h-4 w-4" />
+                                    </Button>
+                                  </div>
                                 </CardContent>
                               </Card>
                             </motion.div>
@@ -291,6 +399,42 @@ export default function CheatSheetsPage() {
           </div>
         </div>
       </div>
+
+      {/* Preview Dialog */}
+      <Dialog open={!!previewFile} onOpenChange={() => setPreviewFile(null)}>
+        <DialogContent className="max-w-4xl w-[90vw] max-h-[90vh] overflow-hidden">
+          <DialogHeader>
+            <div className="flex items-center justify-between">
+              <DialogTitle>{previewFile?.name}</DialogTitle>
+              <div className="flex gap-2">
+                {previewFile && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => downloadCheatSheet(
+                      cheatSheets.find(s => previewFile.name.includes(s.title || ''))?.file_path || '',
+                      previewFile.name
+                    )}
+                  >
+                    <Download className="h-4 w-4 mr-2" />
+                    Скачать
+                  </Button>
+                )}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setPreviewFile(null)}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          </DialogHeader>
+          <div className="mt-4">
+            {renderPreviewContent()}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
