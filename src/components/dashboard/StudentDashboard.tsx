@@ -7,10 +7,10 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { supabase, updateUserProfile } from '@/lib/supabaseClient';
 import { useToast } from '@/hooks/use-toast';
-import { Loader, Upload, FileText, CalendarDays, Clock } from 'lucide-react';
+import { Loader, Upload, FileText, CalendarDays, Clock, BookOpen } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { Link } from 'react-router-dom';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
-import StudentCheatSheets from './StudentCheatSheets';
 interface Homework {
   id: string;
   title: string;
@@ -302,7 +302,12 @@ export default function StudentDashboard() {
           </div>
         </CardContent>
         <CardFooter className="justify-between">
-          <StudentCheatSheets />
+          <Link to="/cheat-sheets">
+            <Button variant="outline">
+              <BookOpen className="h-4 w-4 mr-2" />
+              Мои шпаргалки
+            </Button>
+          </Link>
           <Button onClick={saveProfile} disabled={savingProfile}>
             {savingProfile ? (
               <>
