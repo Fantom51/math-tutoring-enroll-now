@@ -15,6 +15,10 @@ import CheatSheets from "./pages/CheatSheets";
 import StudentProfile from "./pages/StudentProfile";
 import StudentHomework from "./pages/StudentHomework";
 import StudentBookings from "./pages/StudentBookings";
+import TeacherStudents from "./pages/TeacherStudents";
+import TeacherHomework from "./pages/TeacherHomework";
+import TeacherCheatSheets from "./pages/TeacherCheatSheets";
+import TeacherSchedule from "./pages/TeacherSchedule";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -39,6 +43,10 @@ const App = () => (
                 <Route path="/profile" element={<StudentProfile />} />
                 <Route path="/homework" element={<StudentHomework />} />
                 <Route path="/bookings" element={<StudentBookings />} />
+                <Route path="/teacher/students" element={<TeacherStudents />} />
+                <Route path="/teacher/homework" element={<TeacherHomework />} />
+                <Route path="/teacher/cheatsheets" element={<TeacherCheatSheets />} />
+                <Route path="/teacher/schedule" element={<TeacherSchedule />} />
               </Route>
               
               {/* Страница не найдена */}
