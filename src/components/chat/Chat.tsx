@@ -127,12 +127,16 @@ export default function Chat() {
         {
           event: 'INSERT',
           schema: 'public',
-          table: 'messages',
-          filter: `teacher_id=eq.${teacherId} AND student_id=eq.${studentId}`
+          table: 'messages'
         },
         (payload) => {
-          console.log('New message received:', payload.new);
-          setMessages(prev => [...prev, payload.new as Message]);
+          const newMsg = payload.new as Message;
+          if (newMsg.teacher_id === teacherId && newMsg.student_id === studentId) {
+            setMessages((prev) => {
+              if (prev.some((m) => m.id === newMsg.id)) return prev;
+              return [...prev, newMsg];
+            });
+          }
         }
       )
       .subscribe();
@@ -151,16 +155,21 @@ export default function Chat() {
       const teacherId = isTeacher ? user.id : userId;
       const studentId = isTeacher ? userId : user.id;
 
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('messages')
         .insert({
           teacher_id: teacherId,
           student_id: studentId,
           sender_id: user.id,
           content: newMessage.trim()
-        });
+        })
+        .select()
+        .single();
 
       if (error) throw error;
+      if (data) {
+        setMessages((prev) => (prev.some((m) => m.id === data.id) ? prev : [...prev, data as Message]));
+      }
       setNewMessage('');
     } catch (error) {
       console.error('Error sending message:', error);
