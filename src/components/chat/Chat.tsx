@@ -121,22 +121,21 @@ export default function Chat() {
     const studentId = isTeacher ? userId : user.id;
 
     const channel = supabase
-      .channel('schema-db-changes')
+      .channel(`messages:${teacherId}:${studentId}`)
       .on(
         'postgres_changes',
         {
           event: 'INSERT',
           schema: 'public',
-          table: 'messages'
+          table: 'messages',
+          filter: `teacher_id=eq.${teacherId} AND student_id=eq.${studentId}`
         },
         (payload) => {
           const newMsg = payload.new as Message;
-          if (newMsg.teacher_id === teacherId && newMsg.student_id === studentId) {
-            setMessages((prev) => {
-              if (prev.some((m) => m.id === newMsg.id)) return prev;
-              return [...prev, newMsg];
-            });
-          }
+          setMessages((prev) => {
+            if (prev.some((m) => m.id === newMsg.id)) return prev;
+            return [...prev, newMsg];
+          });
         }
       )
       .subscribe();
