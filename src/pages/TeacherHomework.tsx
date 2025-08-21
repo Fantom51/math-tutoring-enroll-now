@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { supabase } from '@/lib/supabaseClient';
 import { useToast } from '@/hooks/use-toast';
-import { Loader, Plus, FileText, Trash, ArrowLeft } from 'lucide-react';
+import { Loader, Plus, FileText, Trash, ArrowLeft, Settings } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import Navbar from '@/components/layout/Navbar';
@@ -48,6 +48,10 @@ interface Homework {
   created_at: string;
 }
 
+interface HomeworkWithAssignedStudents extends Homework {
+  assignedStudents?: Student[];
+}
+
 export default function TeacherHomework() {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -57,6 +61,11 @@ export default function TeacherHomework() {
   const [uploading, setUploading] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [expandDialogOpen, setExpandDialogOpen] = useState(false);
+  const [selectedHomework, setSelectedHomework] = useState<Homework | null>(null);
+  const [assignedStudentIds, setAssignedStudentIds] = useState<string[]>([]);
+  const [additionalStudentIds, setAdditionalStudentIds] = useState<string[]>([]);
+  const [assigningToStudents, setAssigningToStudents] = useState(false);
   
   const [newHomework, setNewHomework] = useState({
     title: '',
@@ -254,6 +263,70 @@ export default function TeacherHomework() {
     }
   };
 
+  const openExpandDialog = async (homework: Homework) => {
+    setSelectedHomework(homework);
+    
+    try {
+      // Получаем список студентов, которым уже назначено это задание
+      const { data, error } = await supabase
+        .from('student_homeworks')
+        .select('student_id')
+        .eq('homework_id', homework.id);
+
+      if (error) throw error;
+      
+      const currentlyAssigned = data?.map(item => item.student_id) || [];
+      setAssignedStudentIds(currentlyAssigned);
+      setAdditionalStudentIds([]);
+      setExpandDialogOpen(true);
+    } catch (error) {
+      console.error('Ошибка при загрузке назначенных студентов:', error);
+      toast({
+        title: 'Ошибка',
+        description: 'Не удалось загрузить информацию о назначенных студентах',
+        variant: 'destructive'
+      });
+    }
+  };
+
+  const assignHomeworkToAdditionalStudents = async () => {
+    if (!selectedHomework || additionalStudentIds.length === 0) return;
+
+    try {
+      setAssigningToStudents(true);
+
+      const studentAssignments = additionalStudentIds.map((studentId) => ({
+        student_id: studentId,
+        homework_id: selectedHomework.id,
+        status: 'not_started'
+      }));
+
+      const { error } = await supabase
+        .from('student_homeworks')
+        .insert(studentAssignments);
+
+      if (error) throw error;
+
+      toast({
+        title: 'Задание назначено',
+        description: `Задание успешно назначено ${additionalStudentIds.length} дополнительным ученикам`
+      });
+
+      setExpandDialogOpen(false);
+      setSelectedHomework(null);
+      setAdditionalStudentIds([]);
+    } catch (error) {
+      console.error('Ошибка при назначении задания:', error);
+      toast({
+        title: 'Ошибка',
+        description: 'Не удалось назначить задание дополнительным ученикам',
+        variant: 'destructive'
+      });
+    } finally {
+      setAssigningToStudents(false);
+    }
+  };
+
   return (
     <motion.div
       className="min-h-screen bg-white"
@@ -422,27 +495,38 @@ export default function TeacherHomework() {
                           <span>Скачать задание</span>
                         </Button>
 
-                        <AlertDialog>
-                          <AlertDialogTrigger asChild>
-                            <Button
-                              variant="destructive"
-                              size="sm"
-                              className="flex items-center gap-2"
-                              disabled={deletingId === homework.id}
-                            >
-                              {deletingId === homework.id ? (
-                                <>
-                                  <Loader className="h-4 w-4 animate-spin" />
-                                  Удаление...
-                                </>
-                              ) : (
-                                <>
-                                  <Trash className="h-4 w-4" />
-                                  Удалить
-                                </>
-                              )}
-                            </Button>
-                          </AlertDialogTrigger>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="flex items-center gap-2"
+                            onClick={() => openExpandDialog(homework)}
+                          >
+                            <Settings className="h-4 w-4" />
+                            <span>Настройки</span>
+                          </Button>
+
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button
+                                variant="destructive"
+                                size="sm"
+                                className="flex items-center gap-2"
+                                disabled={deletingId === homework.id}
+                              >
+                                {deletingId === homework.id ? (
+                                  <>
+                                    <Loader className="h-4 w-4 animate-spin" />
+                                    Удаление...
+                                  </>
+                                ) : (
+                                  <>
+                                    <Trash className="h-4 w-4" />
+                                    Удалить
+                                  </>
+                                )}
+                              </Button>
+                            </AlertDialogTrigger>
                           <AlertDialogContent>
                             <AlertDialogHeader>
                               <AlertDialogTitle>Удалить задание?</AlertDialogTitle>
@@ -457,7 +541,8 @@ export default function TeacherHomework() {
                               </AlertDialogAction>
                             </AlertDialogFooter>
                           </AlertDialogContent>
-                        </AlertDialog>
+                           </AlertDialog>
+                        </div>
                       </div>
                     </CardContent>
                   </Card>
@@ -472,6 +557,112 @@ export default function TeacherHomework() {
             </div>
           )}
         </motion.div>
+
+        {/* Диалог расширения видимости задания */}
+        <Dialog open={expandDialogOpen} onOpenChange={setExpandDialogOpen}>
+          <DialogContent className="sm:max-w-[500px]">
+            <DialogHeader>
+              <DialogTitle>Настройки задания</DialogTitle>
+              <DialogDescription>
+                Расширьте область видимости задания "{selectedHomework?.title}" для дополнительных учеников
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Назначить дополнительным ученикам</label>
+                <div className="flex items-center justify-between">
+                  <p className="text-sm text-gray-600">
+                    Выбрано: {additionalStudentIds.length} новых учеников
+                  </p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      const availableStudents = students.filter(s => !assignedStudentIds.includes(s.id));
+                      setAdditionalStudentIds(
+                        additionalStudentIds.length === availableStudents.length 
+                          ? [] 
+                          : availableStudents.map(s => s.id)
+                      );
+                    }}
+                  >
+                    {additionalStudentIds.length === students.filter(s => !assignedStudentIds.includes(s.id)).length 
+                      ? 'Снять выбор' 
+                      : 'Выбрать всех доступных'
+                    }
+                  </Button>
+                </div>
+                <ScrollArea className="h-48 rounded-md border p-2">
+                  <div className="space-y-2">
+                    {students.length === 0 ? (
+                      <p className="text-sm text-gray-600">Нет доступных учеников</p>
+                    ) : (
+                      students.map((student) => {
+                        const isAlreadyAssigned = assignedStudentIds.includes(student.id);
+                        return (
+                          <div key={student.id} className="flex items-center gap-3 p-2 rounded hover:bg-gray-50">
+                            <Checkbox
+                              id={`expand-${student.id}`}
+                              checked={isAlreadyAssigned || additionalStudentIds.includes(student.id)}
+                              disabled={isAlreadyAssigned}
+                              onCheckedChange={(checked) => {
+                                const isChecked = Boolean(checked);
+                                setAdditionalStudentIds((prev) =>
+                                  isChecked 
+                                    ? [...prev, student.id] 
+                                    : prev.filter((id) => id !== student.id)
+                                );
+                              }}
+                            />
+                            <label 
+                              htmlFor={`expand-${student.id}`} 
+                              className={`text-sm leading-none cursor-pointer ${
+                                isAlreadyAssigned ? 'text-gray-500' : ''
+                              }`}
+                            >
+                              {(student.first_name || student.last_name)
+                                ? `${student.first_name || ''} ${student.last_name || ''}`.trim()
+                                : 'Имя не указано'}
+                              <span className="ml-2 text-gray-600">({student.email})</span>
+                              {isAlreadyAssigned && (
+                                <span className="ml-2 text-xs bg-gray-200 px-2 py-1 rounded">
+                                  Уже назначено
+                                </span>
+                              )}
+                            </label>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                </ScrollArea>
+              </div>
+              <div className="flex gap-2 pt-4">
+                <Button 
+                  variant="outline" 
+                  onClick={() => setExpandDialogOpen(false)}
+                  className="flex-1"
+                >
+                  Отмена
+                </Button>
+                <Button 
+                  onClick={assignHomeworkToAdditionalStudents} 
+                  className="flex-1"
+                  disabled={assigningToStudents || additionalStudentIds.length === 0}
+                >
+                  {assigningToStudents ? (
+                    <>
+                      <Loader className="mr-2 h-4 w-4 animate-spin" />
+                      Назначение...
+                    </>
+                  ) : (
+                    `Назначить ${additionalStudentIds.length > 0 ? `(${additionalStudentIds.length})` : ''}`
+                  )}
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
       </main>
       <Footer />
     </motion.div>
