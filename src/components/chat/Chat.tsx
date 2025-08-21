@@ -40,27 +40,50 @@ export default function Chat() {
   const [chatUser, setChatUser] = useState<ChatUser | null>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const pollIntervalRef = useRef<number | null>(null);
+  const lastRealtimeTsRef = useRef<number>(0);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
   useEffect(() => {
-    if (user && userId) {
-      fetchChatUser();
-      fetchMessages();
-      
-      // Setup realtime subscription
-      const cleanup = subscribeToMessages();
-      
-      // Cleanup subscription on unmount
-      return cleanup;
-    }
+    let cleanup: (() => void) | undefined;
+    const init = async () => {
+      if (user && userId) {
+        await fetchChatUser();
+        await fetchMessages();
+        cleanup = subscribeToMessages();
+      }
+    };
+    void init();
+    return () => {
+      cleanup?.();
+    };
   }, [user, userId, userProfile?.role]);
 
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  // Polling fallback in case realtime is not delivering events
+  useEffect(() => {
+    if (!user || !userId) return;
+    if (pollIntervalRef.current) {
+      window.clearInterval(pollIntervalRef.current);
+    }
+    pollIntervalRef.current = window.setInterval(() => {
+      if (Date.now() - lastRealtimeTsRef.current > 7000) {
+        fetchMessages();
+      }
+    }, 7000);
+    return () => {
+      if (pollIntervalRef.current) {
+        window.clearInterval(pollIntervalRef.current);
+        pollIntervalRef.current = null;
+      }
+    };
+  }, [user, userId, userProfile?.role]);
 
   const fetchChatUser = async () => {
     if (!userId) return;
@@ -145,6 +168,7 @@ export default function Chat() {
             return;
           }
           
+          lastRealtimeTsRef.current = Date.now();
           setMessages((prev) => {
             if (prev.some((m) => m.id === newMsg.id)) {
               console.log('Message already exists, skipping');
@@ -173,6 +197,7 @@ export default function Chat() {
             return;
           }
           
+          lastRealtimeTsRef.current = Date.now();
           setMessages((prev) => {
             if (prev.some((m) => m.id === newMsg.id)) {
               console.log('Message already exists, skipping');
