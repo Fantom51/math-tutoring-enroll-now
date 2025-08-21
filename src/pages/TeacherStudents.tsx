@@ -15,6 +15,7 @@ interface Student {
   email: string;
   first_name?: string;
   last_name?: string;
+  unreadCount?: number;
 }
 
 export default function TeacherStudents() {
@@ -40,7 +41,22 @@ export default function TeacherStudents() {
 
       if (error) throw error;
       
-      setStudents(data || []);
+      // Get unread message counts for each student
+      const studentsWithUnreadCounts = await Promise.all(
+        (data || []).map(async (student) => {
+          const { count } = await supabase
+            .from('messages')
+            .select('*', { count: 'exact', head: true })
+            .eq('student_id', student.id)
+            .eq('teacher_id', user.id)
+            .eq('is_read', false)
+            .neq('sender_id', user.id); // Don't count teacher's own messages
+
+          return { ...student, unreadCount: count || 0 };
+        })
+      );
+      
+      setStudents(studentsWithUnreadCounts);
     } catch (error) {
       console.error('Ошибка при загрузке списка студентов:', error);
       toast({
@@ -115,9 +131,18 @@ export default function TeacherStudents() {
                       </div>
                       <div className="flex items-center gap-2">
                         <Link to={`/chat/${student.id}`}>
-                          <Button variant="outline" size="sm">
+                          <Button 
+                            variant={student.unreadCount && student.unreadCount > 0 ? "default" : "outline"} 
+                            size="sm"
+                            className="relative"
+                          >
                             <MessageCircle className="w-4 h-4 mr-1" />
                             Чат
+                            {student.unreadCount && student.unreadCount > 0 && (
+                              <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center min-w-[20px]">
+                                {student.unreadCount > 99 ? '99+' : student.unreadCount}
+                              </span>
+                            )}
                           </Button>
                         </Link>
                         <UserCheck className="text-green-500 w-5 h-5" />

@@ -106,6 +106,7 @@ export type Database = {
           content: string
           created_at: string
           id: string
+          is_read: boolean
           sender_id: string
           student_id: string
           teacher_id: string
@@ -115,6 +116,7 @@ export type Database = {
           content: string
           created_at?: string
           id?: string
+          is_read?: boolean
           sender_id: string
           student_id: string
           teacher_id: string
@@ -124,6 +126,7 @@ export type Database = {
           content?: string
           created_at?: string
           id?: string
+          is_read?: boolean
           sender_id?: string
           student_id?: string
           teacher_id?: string

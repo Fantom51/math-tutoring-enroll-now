@@ -47,12 +47,40 @@ export default function Chat() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
+  const markMessagesAsRead = async () => {
+    if (!user || !userId || !userProfile) return;
+    
+    try {
+      // Mark all unread messages from this conversation as read
+      if (userProfile.role === 'teacher') {
+        await supabase
+          .from('messages')
+          .update({ is_read: true })
+          .eq('student_id', userId)
+          .eq('teacher_id', user.id)
+          .eq('is_read', false)
+          .neq('sender_id', user.id); // Don't mark teacher's own messages
+      } else {
+        await supabase
+          .from('messages')
+          .update({ is_read: true })
+          .eq('student_id', user.id)
+          .eq('teacher_id', userId)
+          .eq('is_read', false)
+          .neq('sender_id', user.id); // Don't mark student's own messages
+      }
+    } catch (error) {
+      console.error('Error marking messages as read:', error);
+    }
+  };
+
   useEffect(() => {
     let cleanup: (() => void) | undefined;
     const init = async () => {
       if (user && userId) {
         await fetchChatUser();
         await fetchMessages();
+        await markMessagesAsRead(); // Mark messages as read when opening chat
         cleanup = subscribeToMessages();
       }
     };
