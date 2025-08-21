@@ -133,17 +133,52 @@ export default function Chat() {
           event: 'INSERT',
           schema: 'public',
           table: 'messages',
-          filter: `teacher_id=eq.${teacherId},student_id=eq.${studentId}`
+          filter: `teacher_id=eq.${teacherId}`,
         },
         (payload) => {
           console.log('Received realtime message:', payload.new);
           const newMsg = payload.new as Message;
+          
+          // Дополнительная проверка на клиенте для student_id
+          if (newMsg.student_id !== studentId) {
+            console.log('Message not for this chat, ignoring');
+            return;
+          }
+          
           setMessages((prev) => {
             if (prev.some((m) => m.id === newMsg.id)) {
               console.log('Message already exists, skipping');
               return prev;
             }
             console.log('Adding new message to state');
+            return [...prev, newMsg];
+          });
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'messages',
+          filter: `student_id=eq.${studentId}`,
+        },
+        (payload) => {
+          console.log('Received realtime message via student filter:', payload.new);
+          const newMsg = payload.new as Message;
+          
+          // Дополнительная проверка на клиенте для teacher_id
+          if (newMsg.teacher_id !== teacherId) {
+            console.log('Message not for this chat, ignoring');
+            return;
+          }
+          
+          setMessages((prev) => {
+            if (prev.some((m) => m.id === newMsg.id)) {
+              console.log('Message already exists, skipping');
+              return prev;
+            }
+            console.log('Adding new message to state via student filter');
             return [...prev, newMsg];
           });
         }
