@@ -49,9 +49,14 @@ export default function Chat() {
     if (user && userId) {
       fetchChatUser();
       fetchMessages();
-      subscribeToMessages();
+      
+      // Setup realtime subscription
+      const cleanup = subscribeToMessages();
+      
+      // Cleanup subscription on unmount
+      return cleanup;
     }
-  }, [user, userId]);
+  }, [user, userId, userProfile?.role]);
 
   useEffect(() => {
     scrollToBottom();
@@ -116,16 +121,17 @@ export default function Chat() {
     const studentId = isTeacher ? userId : user.id;
 
     const channel = supabase
-      .channel('messages_changes')
+      .channel('schema-db-changes')
       .on(
         'postgres_changes',
         {
           event: 'INSERT',
           schema: 'public',
           table: 'messages',
-          filter: `teacher_id=eq.${teacherId} and student_id=eq.${studentId}`
+          filter: `teacher_id=eq.${teacherId} AND student_id=eq.${studentId}`
         },
         (payload) => {
+          console.log('New message received:', payload.new);
           setMessages(prev => [...prev, payload.new as Message]);
         }
       )
