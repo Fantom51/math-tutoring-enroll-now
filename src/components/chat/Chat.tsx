@@ -114,11 +114,16 @@ export default function Chat() {
   };
 
   const subscribeToMessages = () => {
-    if (!user || !userId) return;
+    if (!user || !userId || !userProfile) {
+      console.log('Missing required data for subscription:', { user: !!user, userId, userProfile: !!userProfile });
+      return;
+    }
 
-    const isTeacher = userProfile?.role === 'teacher';
+    const isTeacher = userProfile.role === 'teacher';
     const teacherId = isTeacher ? user.id : userId;
     const studentId = isTeacher ? userId : user.id;
+
+    console.log('Setting up realtime subscription:', { teacherId, studentId, isTeacher });
 
     const channel = supabase
       .channel(`messages:${teacherId}:${studentId}`)
@@ -128,19 +133,27 @@ export default function Chat() {
           event: 'INSERT',
           schema: 'public',
           table: 'messages',
-          filter: `teacher_id=eq.${teacherId} AND student_id=eq.${studentId}`
+          filter: `teacher_id=eq.${teacherId},student_id=eq.${studentId}`
         },
         (payload) => {
+          console.log('Received realtime message:', payload.new);
           const newMsg = payload.new as Message;
           setMessages((prev) => {
-            if (prev.some((m) => m.id === newMsg.id)) return prev;
+            if (prev.some((m) => m.id === newMsg.id)) {
+              console.log('Message already exists, skipping');
+              return prev;
+            }
+            console.log('Adding new message to state');
             return [...prev, newMsg];
           });
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        console.log('Subscription status:', status);
+      });
 
     return () => {
+      console.log('Cleaning up subscription');
       supabase.removeChannel(channel);
     };
   };
