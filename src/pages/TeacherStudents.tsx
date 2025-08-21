@@ -4,7 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/lib/supabaseClient';
 import { useToast } from '@/hooks/use-toast';
-import { Loader, Users, UserCheck, ArrowLeft } from 'lucide-react';
+import { Loader, Users, UserCheck, ArrowLeft, MessageCircle } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import Navbar from '@/components/layout/Navbar';
@@ -113,7 +113,15 @@ export default function TeacherStudents() {
                         </p>
                         <p className="text-sm text-gray-600">{student.email}</p>
                       </div>
-                      <UserCheck className="text-green-500 w-5 h-5" />
+                      <div className="flex items-center gap-2">
+                        <Link to={`/chat/${student.id}`}>
+                          <Button variant="outline" size="sm">
+                            <MessageCircle className="w-4 h-4 mr-1" />
+                            Чат
+                          </Button>
+                        </Link>
+                        <UserCheck className="text-green-500 w-5 h-5" />
+                      </div>
                     </motion.div>
                   ))}
                 </div>

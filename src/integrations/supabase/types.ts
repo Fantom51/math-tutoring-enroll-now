@@ -101,6 +101,36 @@ export type Database = {
         }
         Relationships: []
       }
+      messages: {
+        Row: {
+          content: string
+          created_at: string
+          id: string
+          sender_id: string
+          student_id: string
+          teacher_id: string
+          updated_at: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          id?: string
+          sender_id: string
+          student_id: string
+          teacher_id: string
+          updated_at?: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          id?: string
+          sender_id?: string
+          student_id?: string
+          teacher_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null

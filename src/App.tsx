@@ -19,6 +19,8 @@ import TeacherStudents from "./pages/TeacherStudents";
 import TeacherHomework from "./pages/TeacherHomework";
 import TeacherCheatSheets from "./pages/TeacherCheatSheets";
 import TeacherSchedule from "./pages/TeacherSchedule";
+import Chat from "./components/chat/Chat";
+import ChatList from "./components/chat/ChatList";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -47,6 +49,8 @@ const App = () => (
                 <Route path="/teacher/homework" element={<TeacherHomework />} />
                 <Route path="/teacher/cheatsheets" element={<TeacherCheatSheets />} />
                 <Route path="/teacher/schedule" element={<TeacherSchedule />} />
+                <Route path="/chat/:userId" element={<Chat />} />
+                <Route path="/chats" element={<ChatList />} />
               </Route>
               
               {/* Страница не найдена */}

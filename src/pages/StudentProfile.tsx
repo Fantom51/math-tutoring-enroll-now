@@ -4,12 +4,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
-import { Loader, User, ArrowLeft } from 'lucide-react';
+import { Loader, User, ArrowLeft, MessageCircle } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import Navbar from '@/components/layout/Navbar';
 import Footer from '@/components/layout/Footer';
-import { updateUserProfile } from '@/lib/supabaseClient';
+import { updateUserProfile, supabase } from '@/lib/supabaseClient';
 
 const StudentProfile = () => {
   const { user, userProfile, refreshProfile } = useAuth();
@@ -17,13 +17,29 @@ const StudentProfile = () => {
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [loading, setLoading] = useState(false);
+  const [teachers, setTeachers] = useState<any[]>([]);
 
   useEffect(() => {
     if (userProfile) {
       setFirstName(userProfile.first_name || '');
       setLastName(userProfile.last_name || '');
+      fetchTeachers();
     }
   }, [userProfile]);
+
+  const fetchTeachers = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('id, first_name, last_name, email')
+        .eq('role', 'teacher');
+
+      if (error) throw error;
+      setTeachers(data || []);
+    } catch (error) {
+      console.error('Error fetching teachers:', error);
+    }
+  };
 
   const saveProfile = async () => {
     if (!user) return;
@@ -120,12 +136,36 @@ const StudentProfile = () => {
                 />
               </div>
 
-              <Button onClick={saveProfile} disabled={loading} className="w-full">
+              <Button onClick={saveProfile} disabled={loading} className="w-full mb-4">
                 {loading ? (
                   <Loader className="h-4 w-4 animate-spin mr-2" />
                 ) : null}
                 Сохранить изменения
               </Button>
+
+              {teachers.length > 0 && (
+                <div className="space-y-3">
+                  <h3 className="text-sm font-medium">Связь с преподавателями</h3>
+                  {teachers.map((teacher) => (
+                    <div key={teacher.id} className="flex items-center justify-between p-3 border rounded-lg">
+                      <div>
+                        <p className="font-medium text-sm">
+                          {teacher.first_name || teacher.last_name 
+                            ? `${teacher.first_name || ''} ${teacher.last_name || ''}`.trim()
+                            : 'Имя не указано'}
+                        </p>
+                        <p className="text-xs text-muted-foreground">{teacher.email}</p>
+                      </div>
+                      <Link to={`/chat/${teacher.id}`}>
+                        <Button variant="outline" size="sm">
+                          <MessageCircle className="w-4 h-4 mr-1" />
+                          Чат
+                        </Button>
+                      </Link>
+                    </div>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
         </motion.div>
