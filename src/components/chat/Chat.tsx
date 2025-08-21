@@ -252,7 +252,7 @@ export default function Chat() {
             </CardTitle>
           </CardHeader>
           
-          <CardContent className="flex-1 flex flex-col p-0">
+          <CardContent className="flex-1 flex flex-col p-0 overflow-hidden">
             <ScrollArea className="flex-1 p-4" ref={scrollAreaRef}>
               {loading ? (
                 <div className="flex justify-center items-center h-32">
