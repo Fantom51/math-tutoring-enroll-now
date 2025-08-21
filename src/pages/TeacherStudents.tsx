@@ -30,6 +30,18 @@ export default function TeacherStudents() {
     }
   }, [user]);
 
+  // Refresh counts when returning to the tab
+  useEffect(() => {
+    if (!user) return;
+    const onVis = () => {
+      if (document.visibilityState === 'visible') {
+        fetchStudents();
+      }
+    };
+    document.addEventListener('visibilitychange', onVis);
+    return () => document.removeEventListener('visibilitychange', onVis);
+  }, [user]);
+
   const fetchStudents = async () => {
     try {
       if (!user) return;
@@ -139,7 +151,7 @@ export default function TeacherStudents() {
                             <MessageCircle className="w-4 h-4 mr-1" />
                             Чат
                             {student.unreadCount && student.unreadCount > 0 && (
-                              <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center min-w-[20px]">
+                              <span className="absolute -top-1 -right-1 bg-destructive text-destructive-foreground text-xs rounded-full h-5 w-5 flex items-center justify-center min-w-[20px]">
                                 {student.unreadCount > 99 ? '99+' : student.unreadCount}
                               </span>
                             )}
