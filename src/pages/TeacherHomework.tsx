@@ -63,9 +63,9 @@ export default function TeacherHomework() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [expandDialogOpen, setExpandDialogOpen] = useState(false);
   const [selectedHomework, setSelectedHomework] = useState<Homework | null>(null);
-  const [assignedStudentIds, setAssignedStudentIds] = useState<string[]>([]);
-  const [additionalStudentIds, setAdditionalStudentIds] = useState<string[]>([]);
-  const [assigningToStudents, setAssigningToStudents] = useState(false);
+  const [originalAssignedIds, setOriginalAssignedIds] = useState<string[]>([]);
+  const [currentSelectedIds, setCurrentSelectedIds] = useState<string[]>([]);
+  const [updatingAssignments, setUpdatingAssignments] = useState(false);
   
   const [newHomework, setNewHomework] = useState({
     title: '',
@@ -276,8 +276,8 @@ export default function TeacherHomework() {
       if (error) throw error;
       
       const currentlyAssigned = data?.map(item => item.student_id) || [];
-      setAssignedStudentIds(currentlyAssigned);
-      setAdditionalStudentIds([]);
+      setOriginalAssignedIds(currentlyAssigned);
+      setCurrentSelectedIds(currentlyAssigned);
       setExpandDialogOpen(true);
     } catch (error) {
       console.error('Ошибка при загрузке назначенных студентов:', error);
@@ -289,41 +289,66 @@ export default function TeacherHomework() {
     }
   };
 
-  const assignHomeworkToAdditionalStudents = async () => {
-    if (!selectedHomework || additionalStudentIds.length === 0) return;
+  const updateHomeworkAssignments = async () => {
+    if (!selectedHomework) return;
 
     try {
-      setAssigningToStudents(true);
+      setUpdatingAssignments(true);
 
-      const studentAssignments = additionalStudentIds.map((studentId) => ({
-        student_id: studentId,
-        homework_id: selectedHomework.id,
-        status: 'not_started'
-      }));
+      // Находим студентов для добавления (есть в currentSelectedIds, но нет в originalAssignedIds)
+      const toAdd = currentSelectedIds.filter(id => !originalAssignedIds.includes(id));
+      
+      // Находим студентов для удаления (есть в originalAssignedIds, но нет в currentSelectedIds)
+      const toRemove = originalAssignedIds.filter(id => !currentSelectedIds.includes(id));
 
-      const { error } = await supabase
-        .from('student_homeworks')
-        .insert(studentAssignments);
+      // Добавляем новых студентов
+      if (toAdd.length > 0) {
+        const studentAssignments = toAdd.map((studentId) => ({
+          student_id: studentId,
+          homework_id: selectedHomework.id,
+          status: 'not_started'
+        }));
 
-      if (error) throw error;
+        const { error: insertError } = await supabase
+          .from('student_homeworks')
+          .insert(studentAssignments);
+
+        if (insertError) throw insertError;
+      }
+
+      // Удаляем студентов
+      if (toRemove.length > 0) {
+        const { error: deleteError } = await supabase
+          .from('student_homeworks')
+          .delete()
+          .eq('homework_id', selectedHomework.id)
+          .in('student_id', toRemove);
+
+        if (deleteError) throw deleteError;
+      }
+
+      const changes = [];
+      if (toAdd.length > 0) changes.push(`назначено ${toAdd.length} ученикам`);
+      if (toRemove.length > 0) changes.push(`убрано у ${toRemove.length} учеников`);
 
       toast({
-        title: 'Задание назначено',
-        description: `Задание успешно назначено ${additionalStudentIds.length} дополнительным ученикам`
+        title: 'Настройки обновлены',
+        description: changes.length > 0 ? `Задание ${changes.join(', ')}` : 'Настройки сохранены'
       });
 
       setExpandDialogOpen(false);
       setSelectedHomework(null);
-      setAdditionalStudentIds([]);
+      setCurrentSelectedIds([]);
+      setOriginalAssignedIds([]);
     } catch (error) {
-      console.error('Ошибка при назначении задания:', error);
+      console.error('Ошибка при обновлении назначений:', error);
       toast({
         title: 'Ошибка',
-        description: 'Не удалось назначить задание дополнительным ученикам',
+        description: 'Не удалось обновить назначения задания',
         variant: 'destructive'
       });
     } finally {
-      setAssigningToStudents(false);
+      setUpdatingAssignments(false);
     }
   };
 
@@ -564,31 +589,30 @@ export default function TeacherHomework() {
             <DialogHeader>
               <DialogTitle>Настройки задания</DialogTitle>
               <DialogDescription>
-                Расширьте область видимости задания "{selectedHomework?.title}" для дополнительных учеников
+                Управляйте доступностью задания "{selectedHomework?.title}" для учеников
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-4">
               <div className="space-y-2">
-                <label className="text-sm font-medium">Назначить дополнительным ученикам</label>
+                <label className="text-sm font-medium">Выберите учеников, которым доступно это задание</label>
                 <div className="flex items-center justify-between">
                   <p className="text-sm text-gray-600">
-                    Выбрано: {additionalStudentIds.length} новых учеников
+                    Выбрано: {currentSelectedIds.length} из {students.length} учеников
                   </p>
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={() => {
-                      const availableStudents = students.filter(s => !assignedStudentIds.includes(s.id));
-                      setAdditionalStudentIds(
-                        additionalStudentIds.length === availableStudents.length 
+                      setCurrentSelectedIds(
+                        currentSelectedIds.length === students.length 
                           ? [] 
-                          : availableStudents.map(s => s.id)
+                          : students.map(s => s.id)
                       );
                     }}
                   >
-                    {additionalStudentIds.length === students.filter(s => !assignedStudentIds.includes(s.id)).length 
-                      ? 'Снять выбор' 
-                      : 'Выбрать всех доступных'
+                    {currentSelectedIds.length === students.length 
+                      ? 'Снять выбор со всех' 
+                      : 'Выбрать всех'
                     }
                   </Button>
                 </div>
@@ -598,16 +622,18 @@ export default function TeacherHomework() {
                       <p className="text-sm text-gray-600">Нет доступных учеников</p>
                     ) : (
                       students.map((student) => {
-                        const isAlreadyAssigned = assignedStudentIds.includes(student.id);
+                        const isCurrentlySelected = currentSelectedIds.includes(student.id);
+                        const wasOriginallyAssigned = originalAssignedIds.includes(student.id);
+                        const hasChanges = isCurrentlySelected !== wasOriginallyAssigned;
+                        
                         return (
                           <div key={student.id} className="flex items-center gap-3 p-2 rounded hover:bg-gray-50">
                             <Checkbox
                               id={`expand-${student.id}`}
-                              checked={isAlreadyAssigned || additionalStudentIds.includes(student.id)}
-                              disabled={isAlreadyAssigned}
+                              checked={isCurrentlySelected}
                               onCheckedChange={(checked) => {
                                 const isChecked = Boolean(checked);
-                                setAdditionalStudentIds((prev) =>
+                                setCurrentSelectedIds((prev) =>
                                   isChecked 
                                     ? [...prev, student.id] 
                                     : prev.filter((id) => id !== student.id)
@@ -616,20 +642,29 @@ export default function TeacherHomework() {
                             />
                             <label 
                               htmlFor={`expand-${student.id}`} 
-                              className={`text-sm leading-none cursor-pointer ${
-                                isAlreadyAssigned ? 'text-gray-500' : ''
-                              }`}
+                              className="text-sm leading-none cursor-pointer flex-1"
                             >
                               {(student.first_name || student.last_name)
                                 ? `${student.first_name || ''} ${student.last_name || ''}`.trim()
                                 : 'Имя не указано'}
                               <span className="ml-2 text-gray-600">({student.email})</span>
-                              {isAlreadyAssigned && (
-                                <span className="ml-2 text-xs bg-gray-200 px-2 py-1 rounded">
-                                  Уже назначено
+                            </label>
+                            <div className="flex gap-1">
+                              {wasOriginallyAssigned && (
+                                <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
+                                  Назначено
                                 </span>
                               )}
-                            </label>
+                              {hasChanges && (
+                                <span className={`text-xs px-2 py-1 rounded ${
+                                  isCurrentlySelected 
+                                    ? 'bg-green-100 text-green-800' 
+                                    : 'bg-red-100 text-red-800'
+                                }`}>
+                                  {isCurrentlySelected ? 'Добавится' : 'Уберется'}
+                                </span>
+                              )}
+                            </div>
                           </div>
                         );
                       })
@@ -640,23 +675,27 @@ export default function TeacherHomework() {
               <div className="flex gap-2 pt-4">
                 <Button 
                   variant="outline" 
-                  onClick={() => setExpandDialogOpen(false)}
+                  onClick={() => {
+                    setExpandDialogOpen(false);
+                    setCurrentSelectedIds([]);
+                    setOriginalAssignedIds([]);
+                  }}
                   className="flex-1"
                 >
                   Отмена
                 </Button>
                 <Button 
-                  onClick={assignHomeworkToAdditionalStudents} 
+                  onClick={updateHomeworkAssignments} 
                   className="flex-1"
-                  disabled={assigningToStudents || additionalStudentIds.length === 0}
+                  disabled={updatingAssignments || JSON.stringify(currentSelectedIds.sort()) === JSON.stringify(originalAssignedIds.sort())}
                 >
-                  {assigningToStudents ? (
+                  {updatingAssignments ? (
                     <>
                       <Loader className="mr-2 h-4 w-4 animate-spin" />
-                      Назначение...
+                      Сохранение...
                     </>
                   ) : (
-                    `Назначить ${additionalStudentIds.length > 0 ? `(${additionalStudentIds.length})` : ''}`
+                    'Сохранить изменения'
                   )}
                 </Button>
               </div>
