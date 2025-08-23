@@ -98,13 +98,18 @@ const StudentHomework = () => {
     }
   };
 
-  const downloadHomework = async (fileUrl: string, fileName: string) => {
+  const downloadHomework = async (fileUrl: string, homeworkTitle: string) => {
     try {
       const { data, error } = await supabase.storage
         .from('homework_files')
         .download(fileUrl);
 
       if (error) throw error;
+
+      // Извлекаем оригинальное расширение файла из URL
+      const originalFileName = fileUrl.split('/').pop() || '';
+      const fileExtension = originalFileName.split('.').pop() || 'txt';
+      const fileName = `${homeworkTitle}.${fileExtension}`;
 
       const blob = new Blob([data]);
       const url = URL.createObjectURL(blob);
