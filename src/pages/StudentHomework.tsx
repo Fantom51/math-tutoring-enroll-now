@@ -10,6 +10,7 @@ import { Link } from 'react-router-dom';
 import Navbar from '@/components/layout/Navbar';
 import Footer from '@/components/layout/Footer';
 import { supabase } from '@/lib/supabaseClient';
+import EgeAnswerInput from '@/components/homework/EgeAnswerInput';
 
 interface Homework {
   id: string;
@@ -19,6 +20,11 @@ interface Homework {
   created_at: string;
   status: string;
   solution_url?: string;
+  is_ege?: boolean;
+  ege_answers?: string[];
+  ege_student_answers?: string[];
+  ege_score?: number;
+  student_homework_id?: string;
 }
 
 const StudentHomework = () => {
@@ -27,6 +33,8 @@ const StudentHomework = () => {
   const [homeworks, setHomeworks] = useState<Homework[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState<string | null>(null);
+  const [egeDialogOpen, setEgeDialogOpen] = useState(false);
+  const [selectedEgeHomework, setSelectedEgeHomework] = useState<Homework | null>(null);
 
   useEffect(() => {
     if (user) {
@@ -45,12 +53,16 @@ const StudentHomework = () => {
           status,
           solution_url,
           homework_id,
+          ege_student_answers,
+          ege_score,
           homeworks (
             id,
             title,
             description,
             file_url,
-            created_at
+            created_at,
+            is_ege,
+            ege_answers
           )
         `)
         .eq('student_id', user.id)
@@ -66,7 +78,11 @@ const StudentHomework = () => {
         created_at: item.homeworks.created_at,
         status: item.status,
         solution_url: item.solution_url,
-        student_homework_id: item.id
+        student_homework_id: item.id,
+        is_ege: item.homeworks.is_ege,
+        ege_answers: item.homeworks.ege_answers,
+        ege_student_answers: item.ege_student_answers,
+        ege_score: item.ege_score
       })) || [];
 
       setHomeworks(formattedHomeworks);
@@ -154,6 +170,49 @@ const StudentHomework = () => {
     }
   };
 
+  const handleEgeAnswerSubmit = async (answers: string[]) => {
+    if (!selectedEgeHomework || !user) return;
+    
+    try {
+      const score = answers.reduce((total, answer, index) => {
+        return total + (answer.trim().toLowerCase() === selectedEgeHomework.ege_answers?.[index]?.toLowerCase() ? 1 : 0);
+      }, 0);
+
+      const { error } = await supabase
+        .from('student_homeworks')
+        .update({
+          ege_student_answers: answers,
+          ege_score: score,
+          status: 'submitted'
+        })
+        .eq('homework_id', selectedEgeHomework.id)
+        .eq('student_id', user.id);
+
+      if (error) throw error;
+
+      toast({
+        title: 'Ответы отправлены',
+        description: `Ваш результат: ${score}/12`
+      });
+
+      await fetchHomeworks();
+      setEgeDialogOpen(false);
+      setSelectedEgeHomework(null);
+    } catch (error) {
+      console.error('Ошибка при отправке ответов ЕГЭ:', error);
+      toast({
+        title: 'Ошибка',
+        description: 'Не удалось отправить ответы',
+        variant: 'destructive'
+      });
+    }
+  };
+
+  const openEgeDialog = (homework: Homework) => {
+    setSelectedEgeHomework(homework);
+    setEgeDialogOpen(true);
+  };
+
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'not_started':
@@ -237,7 +296,18 @@ const StudentHomework = () => {
                           Скачать задание
                         </Button>
                         
-                        {homework.status !== 'submitted' && (
+                        {homework.is_ege ? (
+                          <Button
+                            onClick={() => openEgeDialog(homework)}
+                            size="sm"
+                            variant={homework.ege_student_answers ? "outline" : "default"}
+                          >
+                            {homework.ege_student_answers ? 
+                              `Результат: ${homework.ege_score}/12` : 
+                              'Ввести ответы ЕГЭ'
+                            }
+                          </Button>
+                        ) : homework.status !== 'submitted' && (
                           <div>
                             <input
                               type="file"
@@ -278,6 +348,21 @@ const StudentHomework = () => {
         </motion.div>
       </main>
       <Footer />
+      
+      {selectedEgeHomework && (
+        <EgeAnswerInput
+          isOpen={egeDialogOpen}
+          onClose={() => {
+            setEgeDialogOpen(false);
+            setSelectedEgeHomework(null);
+          }}
+          teacherAnswers={selectedEgeHomework.ege_answers || []}
+          onSubmit={handleEgeAnswerSubmit}
+          homeworkTitle={selectedEgeHomework.title}
+          existingAnswers={selectedEgeHomework.ege_student_answers}
+          existingScore={selectedEgeHomework.ege_score}
+        />
+      )}
     </motion.div>
   );
 };

@@ -78,24 +78,30 @@ export type Database = {
         Row: {
           created_at: string
           description: string | null
+          ege_answers: string[] | null
           file_url: string | null
           id: string
+          is_ege: boolean | null
           teacher_id: string
           title: string
         }
         Insert: {
           created_at?: string
           description?: string | null
+          ege_answers?: string[] | null
           file_url?: string | null
           id?: string
+          is_ege?: boolean | null
           teacher_id: string
           title: string
         }
         Update: {
           created_at?: string
           description?: string | null
+          ege_answers?: string[] | null
           file_url?: string | null
           id?: string
+          is_ege?: boolean | null
           teacher_id?: string
           title?: string
         }
@@ -214,6 +220,8 @@ export type Database = {
       student_homeworks: {
         Row: {
           created_at: string
+          ege_score: number | null
+          ege_student_answers: string[] | null
           homework_id: string
           id: string
           solution_url: string | null
@@ -222,6 +230,8 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          ege_score?: number | null
+          ege_student_answers?: string[] | null
           homework_id: string
           id?: string
           solution_url?: string | null
@@ -230,6 +240,8 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          ege_score?: number | null
+          ege_student_answers?: string[] | null
           homework_id?: string
           id?: string
           solution_url?: string | null

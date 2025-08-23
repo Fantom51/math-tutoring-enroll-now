@@ -32,6 +32,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Checkbox } from '@/components/ui/checkbox';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import EgeAnswerForm from '@/components/homework/EgeAnswerForm';
 
 interface Student {
   id: string;
@@ -46,6 +47,8 @@ interface Homework {
   description: string;
   file_url: string;
   created_at: string;
+  is_ege?: boolean;
+  ege_answers?: string[];
 }
 
 interface HomeworkWithAssignedStudents extends Homework {
@@ -71,6 +74,8 @@ export default function TeacherHomework() {
     title: '',
     description: '',
     file: null as File | null,
+    isEge: false,
+    egeAnswers: new Array(12).fill(''),
   });
   const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
 
@@ -158,23 +163,25 @@ export default function TeacherHomework() {
       if (uploadError) throw uploadError;
       
       // Создание записи о домашнем задании
-      const { error: homeworkError, data: homeworkData } = await supabase
+      const homeworkData = {
+        title: newHomework.title,
+        description: newHomework.description,
+        file_url: filePath,
+        teacher_id: user.id,
+        is_ege: newHomework.isEge,
+        ege_answers: newHomework.isEge ? newHomework.egeAnswers.filter(answer => answer.trim()) : null
+      };
+
+      const { error: homeworkError, data: homeworkResponse } = await supabase
         .from('homeworks')
-        .insert([
-          {
-            title: newHomework.title,
-            description: newHomework.description,
-            file_url: filePath,
-            teacher_id: user.id
-          }
-        ])
+        .insert([homeworkData])
         .select();
 
       if (homeworkError) throw homeworkError;
 
       // Назначение выбранным ученикам
-      if (homeworkData && homeworkData.length > 0) {
-        const homeworkId = homeworkData[0].id;
+      if (homeworkResponse && homeworkResponse.length > 0) {
+        const homeworkId = homeworkResponse[0].id;
 
         const studentAssignments = selectedStudentIds.map((studentId) => ({
           student_id: studentId,
@@ -195,7 +202,9 @@ export default function TeacherHomework() {
       setNewHomework({
         title: '',
         description: '',
-        file: null
+        file: null,
+        isEge: false,
+        egeAnswers: new Array(12).fill(''),
       });
       setSelectedStudentIds([]);
       
@@ -424,6 +433,12 @@ export default function TeacherHomework() {
                       onChange={handleFileChange}
                     />
                   </div>
+                  <EgeAnswerForm
+                    isEge={newHomework.isEge}
+                    onEgeChange={(isEge) => setNewHomework({ ...newHomework, isEge })}
+                    answers={newHomework.egeAnswers}
+                    onAnswersChange={(answers) => setNewHomework({ ...newHomework, egeAnswers: answers })}
+                  />
                   <div className="space-y-2">
                     <label className="text-sm font-medium">Назначить ученикам</label>
                     <div className="flex items-center justify-between">
