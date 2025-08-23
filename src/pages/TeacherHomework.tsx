@@ -399,14 +399,14 @@ export default function TeacherHomework() {
                   <span>Создать задание</span>
                 </Button>
               </DialogTrigger>
-              <DialogContent className="sm:max-w-[500px]">
+              <DialogContent className="sm:max-w-[500px] max-h-[85vh]">
                 <DialogHeader>
                   <DialogTitle>Создать новое задание</DialogTitle>
                   <DialogDescription>
                     Заполните форму для создания нового домашнего задания
                   </DialogDescription>
                 </DialogHeader>
-                <div className="space-y-4 py-4">
+                <div className="space-y-4 py-4 max-h-[65vh] overflow-y-auto pr-2">
                   <div className="space-y-2">
                     <label htmlFor="title" className="text-sm font-medium">Название</label>
                     <Input
@@ -482,6 +482,8 @@ export default function TeacherHomework() {
                       </div>
                     </ScrollArea>
                   </div>
+                </div>
+                <div className="border-t pt-4">
                   <Button 
                     onClick={createHomework} 
                     className="w-full"
