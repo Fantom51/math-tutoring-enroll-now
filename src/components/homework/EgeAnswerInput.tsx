@@ -30,10 +30,13 @@ export default function EgeAnswerInput({
   existingAnswers = [],
   existingScore 
 }: EgeAnswerInputProps) {
+  const safeTeacherAnswers = teacherAnswers || [];
+  const safeExistingAnswers = existingAnswers || [];
+  
   const [answers, setAnswers] = useState<string[]>(
-    existingAnswers.length === 12 ? existingAnswers : new Array(12).fill('')
+    safeExistingAnswers.length === 12 ? safeExistingAnswers : new Array(12).fill('')
   );
-  const [showResults, setShowResults] = useState(existingAnswers.length === 12);
+  const [showResults, setShowResults] = useState(safeExistingAnswers.length === 12);
 
   const handleAnswerChange = (index: number, value: string) => {
     const newAnswers = [...answers];
@@ -49,12 +52,12 @@ export default function EgeAnswerInput({
 
   const calculateScore = () => {
     return answers.reduce((score, answer, index) => {
-      return score + (answer.trim().toLowerCase() === teacherAnswers[index]?.toLowerCase() ? 1 : 0);
+      return score + (answer.trim().toLowerCase() === safeTeacherAnswers[index]?.toLowerCase() ? 1 : 0);
     }, 0);
   };
 
   const getResultColor = (userAnswer: string, correctAnswer: string) => {
-    return userAnswer.trim().toLowerCase() === correctAnswer?.toLowerCase() 
+    return userAnswer.trim().toLowerCase() === (correctAnswer || '')?.toLowerCase() 
       ? 'text-green-600' 
       : 'text-red-600';
   };
@@ -84,13 +87,13 @@ export default function EgeAnswerInput({
                   <div className="space-y-1">
                     <div className="text-sm">
                       <span className="text-gray-600">Ваш ответ: </span>
-                      <span className={getResultColor(answer, teacherAnswers[index])}>
+                      <span className={getResultColor(answer, safeTeacherAnswers[index])}>
                         {answer || 'Не заполнено'}
                       </span>
                     </div>
                     <div className="text-sm">
                       <span className="text-gray-600">Правильный: </span>
-                      <span className="text-green-600">{teacherAnswers[index]}</span>
+                      <span className="text-green-600">{safeTeacherAnswers[index] || 'Не указан'}</span>
                     </div>
                   </div>
                 </div>
