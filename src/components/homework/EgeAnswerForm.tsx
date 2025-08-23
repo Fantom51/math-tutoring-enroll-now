@@ -41,21 +41,23 @@ export default function EgeAnswerForm({ isEge, onEgeChange, answers, onAnswersCh
       {isEge && (
         <div className="space-y-3">
           <Label className="text-sm font-medium">Правильные ответы (12 заданий)</Label>
-          <div className="grid grid-cols-2 gap-3 p-4 border rounded-lg bg-gray-50">
-            {Array.from({ length: 12 }, (_, index) => (
-              <div key={index} className="space-y-1">
-                <Label htmlFor={`ege-answer-${index}`} className="text-xs">
-                  Задание {index + 1}
-                </Label>
-                <Input
-                  id={`ege-answer-${index}`}
-                  value={answers[index] || ''}
-                  onChange={(e) => handleAnswerChange(index, e.target.value)}
-                  placeholder="Ответ"
-                  className="text-sm"
-                />
-              </div>
-            ))}
+          <div className="max-h-[400px] overflow-y-auto p-4 border rounded-lg bg-gray-50">
+            <div className="grid grid-cols-2 gap-3">
+              {Array.from({ length: 12 }, (_, index) => (
+                <div key={index} className="space-y-1">
+                  <Label htmlFor={`ege-answer-${index}`} className="text-xs">
+                    Задание {index + 1}
+                  </Label>
+                  <Input
+                    id={`ege-answer-${index}`}
+                    value={answers[index] || ''}
+                    onChange={(e) => handleAnswerChange(index, e.target.value)}
+                    placeholder="Ответ"
+                    className="text-sm"
+                  />
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       )}
